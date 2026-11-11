@@ -43,3 +43,8 @@ python -m pytest -q                   # 테스트
 
 ## 배포
 GitHub Actions 워크플로(`collect.yml`)는 수동 실행만 켜져 있습니다. 정기 실행과 Pages 배포는 명시적으로 지시할 때 켭니다.
+
+## FSS Insights 통합 계획
+- 이 저장소(`Test_web`)는 수집·분석과 JSON 산출을 맡고, 화면은 FSS Insights 웹(`fss-insights-web`)의 새 화면 `js/screens/trend.js` 로 만들어 `tools/sync_web_assets.py` 로 앱에 복사합니다.
+- 화면은 이 저장소가 공개하는 `data/*.json`(GitHub Pages)만 읽습니다. 관심 키워드는 기존 `store` 규칙대로 브라우저에 저장합니다.
+- 디자인은 FSS Insights 네이비 콘솔(파랑 강조, 상승 빨강·하락 파랑, Pretendard)을 따릅니다.
