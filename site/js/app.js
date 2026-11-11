@@ -256,6 +256,7 @@ async function viewPosts(params) {
 }
 
 // ── 관심 키워드 (이 브라우저에만 저장)
+const MAX_WATCH = 5;
 const loadWatch = () => store.get("watch", []);
 function matchesWatch(item, p) {
   const t = compact(p.t);
@@ -268,12 +269,12 @@ async function viewWatch() {
   const list = loadWatch();
   const csv = (id) => $(id).value.split(",").map((s) => s.trim()).filter(Boolean);
   box.append(
-    h("div", { class: "card" }, h("h2", null, "관심 키워드 등록"),
+    h("div", { class: "card" }, h("h2", null, "관심 키워드 등록 ", h("span", { class: "small muted" }, `(${list.length}/${MAX_WATCH})`)),
       h("form", { class: "field", onsubmit: (e) => {
         e.preventDefault();
         const k = $("wk").value.trim();
         if (!k) return;
-        if (list.length >= 30) { alert("관심 키워드는 30개까지 등록할 수 있습니다."); return; }
+        if (list.length >= MAX_WATCH && !list.some((x) => x.k === k)) { alert(`관심 키워드는 ${MAX_WATCH}개까지 등록할 수 있습니다. 기존 키워드를 삭제한 뒤 등록해 주세요.`); return; }
         store.set("watch", [...list.filter((x) => x.k !== k), { k, s: csv("ws"), x: csv("wx") }]);
         render();
       } },
