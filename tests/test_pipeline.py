@@ -253,3 +253,20 @@ def test_naver_api(tmp_path):
     assert r.status == "backoff"
     store.close()
     assert credentials({"NAVER_CLIENT_ID": " ", "NAVER_CLIENT_SECRET": "x"}) is None
+
+
+def test_excluded_broad_keywords_are_not_counted():
+    from trendchecker.config import load_excluded_keywords
+    from trendchecker.storage.db import StoredPost
+    ex = load_excluded_keywords()
+    assert {"주식", "대출", "금리"} <= ex
+    m = FinanceMatcher(load_dictionary())
+    at = datetime(2026, 11, 11, 3, tzinfo=timezone.utc)
+    posts = [StoredPost("1", "clien_park", "주식 대출 금리 얘기", "https://x/1", at, True),
+             StoredPost("2", "clien_park", "카카오뱅크 대출 후기", "https://x/2", at, True),
+             StoredPost("3", "clien_park", "오늘 점심 뭐 먹지", "https://x/3", at, True)]
+    out = analyze_posts(posts, m, SOURCES, ex)
+    assert [e.name for e in out[0].keywords] == [] and out[0].is_finance  # 금융 글로는 세지만 키워드 순위엔 안 나옴
+    assert [e.name for e in out[1].keywords] == ["카카오뱅크"]
+    assert not out[2].is_finance
+    assert [e.name for e in analyze_posts(posts, m, SOURCES)[0].keywords] == ["주식", "대출", "금리"]

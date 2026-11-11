@@ -13,7 +13,7 @@
 
 ## 구조
 ```
-config/                  sources.yaml(게시판) · finance_dict.yaml(금융 사전) · watchlist.yaml · stopwords.txt
+config/                  sources.yaml(게시판) · finance_dict.yaml(금융 사전) · exclude_keywords.txt(집계에서 뺄 광범위 단어) · watchlist.yaml · stopwords.txt
 trendchecker/collector/  robots 해석, 예의 있는 HTTP 클라이언트, RSS·링크 목록 파서, 수집 루프
 trendchecker/analysis/   사전 매칭(가장 긴 표현 우선, 모호어는 문맥 필요), 집계, 급상승, Kiwi 새 키워드 후보
 trendchecker/storage/    SQLite (state/trend.db, 7일 보관)

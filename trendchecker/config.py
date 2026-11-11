@@ -133,6 +133,19 @@ def load_naver_queries(path: Path | None = None) -> list[str]:
     return out
 
 
+def load_excluded_keywords(path: Path | None = None) -> set[str]:
+    """집계에서 뺄 광범위 대표어(config/exclude_keywords.txt)."""
+    p = path or CONFIG_DIR / "exclude_keywords.txt"
+    if not p.exists():
+        return set()
+    out = set()
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            out.add(line)
+    return out
+
+
 def load_stopwords(path: Path | None = None) -> set[str]:
     p = path or CONFIG_DIR / "stopwords.txt"
     if not p.exists():

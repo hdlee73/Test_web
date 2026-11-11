@@ -21,12 +21,15 @@ class AnalyzedPost:
     is_finance: bool
 
 
-def analyze_posts(posts: list[StoredPost], matcher: FinanceMatcher, sources: dict[str, Source]) -> list[AnalyzedPost]:
+def analyze_posts(posts: list[StoredPost], matcher: FinanceMatcher, sources: dict[str, Source],
+                  exclude: frozenset[str] | set[str] = frozenset()) -> list[AnalyzedPost]:
+    """exclude: 너무 광범위해 집계에서 뺄 대표어. 글은 여전히 '금융 관련'으로 센다."""
     out = []
     for p in posts:
-        kws = matcher.keywords(p.title)
+        found = matcher.keywords(p.title)
+        kws = [e for e in found if e.name not in exclude]
         src = sources.get(p.source_id)
-        out.append(AnalyzedPost(p, kws, bool(kws) or bool(src and src.finance_board)))
+        out.append(AnalyzedPost(p, kws, bool(found) or bool(src and src.finance_board)))
     return out
 
 

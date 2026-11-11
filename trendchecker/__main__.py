@@ -21,7 +21,7 @@ from .collector.adapters import parse
 from .collector.http import PoliteClient
 from .collector.run import collect_all
 from .collector.timeutil import utcnow
-from .config import ROOT, load_dictionary, load_sources, load_stopwords, load_watchlist
+from .config import ROOT, load_dictionary, load_excluded_keywords, load_sources, load_stopwords, load_watchlist
 from .export.json_export import export_all
 from .logutil import setup_logging
 from .storage.db import Store
@@ -58,7 +58,7 @@ def cmd_build(args) -> int:
     finally:
         store.close()
     src_map = {s.id: s for s in settings.sources}
-    analyzed = analyze_posts(posts, matcher, src_map)
+    analyzed = analyze_posts(posts, matcher, src_map, load_excluded_keywords())
     fin_titles = [a.post.title for a in analyzed if a.is_finance]
     try:
         cands = find_candidates(fin_titles, matcher.all_alias_texts | set(matcher.entries), load_stopwords())
