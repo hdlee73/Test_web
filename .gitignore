@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+# 수집 데이터/로그 (저장소에 올리지 않음)
+state/
+logs/
+site/data/
+*.tmp
+# 인증 정보·키
+.env
+*.keystore
+*.jks
+local.properties
+secrets/

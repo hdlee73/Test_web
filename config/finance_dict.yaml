@@ -1,0 +1,174 @@
+# 금융·금융회사 키워드 사전
+#
+# name      : 화면에 보이는 대표어
+# category  : 분류 (화면 필터에 사용)
+# aliases   : 그대로 나오면 대표어로 인정하는 표현 (공백 무시 비교)
+# ambiguous : 다른 뜻으로도 흔히 쓰이는 표현. 같은 글에 다른 금융 표현이 있을 때만 인정
+#
+# 영문 별칭은 대소문자를 구분하지 않으며, 앞뒤가 영문/숫자이면 매칭하지 않는다(예: "KB" 는 "KBO" 에 매칭 안 됨).
+# 새 키워드는 data/candidates.json(사전에 없는 금융 문맥 명사)을 보고 주기적으로 추가한다.
+
+companies:
+  # ── 은행
+  - {name: KB국민은행, category: 은행, aliases: [국민은행, KB국민은행, 국민銀], ambiguous: [KB, 국민]}
+  - {name: 신한은행, category: 은행, aliases: [신한은행], ambiguous: [신한]}
+  - {name: 하나은행, category: 은행, aliases: [하나은행, KEB하나], ambiguous: []}
+  - {name: 우리은행, category: 은행, aliases: [우리은행], ambiguous: []}
+  - {name: NH농협은행, category: 은행, aliases: [농협은행, NH농협은행], ambiguous: [농협, NH]}
+  - {name: IBK기업은행, category: 은행, aliases: [기업은행, IBK기업, IBK], ambiguous: []}
+  - {name: SC제일은행, category: 은행, aliases: [SC제일, 제일은행], ambiguous: []}
+  - {name: 한국씨티은행, category: 은행, aliases: [씨티은행], ambiguous: []}
+  - {name: 카카오뱅크, category: 인터넷은행, aliases: [카카오뱅크, 카뱅], ambiguous: []}
+  - {name: 케이뱅크, category: 인터넷은행, aliases: [케이뱅크, 케뱅], ambiguous: []}
+  - {name: 토스뱅크, category: 인터넷은행, aliases: [토스뱅크], ambiguous: []}
+  - {name: iM뱅크, category: 은행, aliases: [iM뱅크, 대구은행, DGB대구은행], ambiguous: []}
+  - {name: 부산은행, category: 은행, aliases: [부산은행, BNK부산], ambiguous: []}
+  - {name: 경남은행, category: 은행, aliases: [경남은행], ambiguous: []}
+  - {name: 광주은행, category: 은행, aliases: [광주은행], ambiguous: []}
+  - {name: 전북은행, category: 은행, aliases: [전북은행], ambiguous: []}
+  - {name: 제주은행, category: 은행, aliases: [제주은행], ambiguous: []}
+  - {name: 수협은행, category: 은행, aliases: [수협은행], ambiguous: [수협]}
+  - {name: KDB산업은행, category: 은행, aliases: [산업은행, KDB산업은행], ambiguous: [산은]}
+  - {name: 한국수출입은행, category: 은행, aliases: [수출입은행], ambiguous: [수은]}
+  - {name: 새마을금고, category: 상호금융, aliases: [새마을금고, MG새마을금고], ambiguous: []}
+  - {name: 신협, category: 상호금융, aliases: [신협, 신용협동조합], ambiguous: []}
+  - {name: 우체국예금, category: 상호금융, aliases: [우체국예금, 우체국적금], ambiguous: []}
+  - {name: 저축은행, category: 저축은행, aliases: [저축은행], ambiguous: []}
+  - {name: SBI저축은행, category: 저축은행, aliases: [SBI저축은행, SBI저축], ambiguous: []}
+  - {name: OK저축은행, category: 저축은행, aliases: [OK저축은행, OK저축], ambiguous: []}
+  - {name: 웰컴저축은행, category: 저축은행, aliases: [웰컴저축은행], ambiguous: []}
+  # ── 금융지주
+  - {name: KB금융, category: 금융지주, aliases: [KB금융, KB금융지주], ambiguous: []}
+  - {name: 신한지주, category: 금융지주, aliases: [신한지주, 신한금융, 신한금융지주], ambiguous: []}
+  - {name: 하나금융, category: 금융지주, aliases: [하나금융, 하나금융지주], ambiguous: []}
+  - {name: 우리금융, category: 금융지주, aliases: [우리금융, 우리금융지주], ambiguous: []}
+  - {name: NH농협금융, category: 금융지주, aliases: [농협금융, NH농협금융], ambiguous: []}
+  - {name: BNK금융, category: 금융지주, aliases: [BNK금융, BNK금융지주], ambiguous: [BNK]}
+  - {name: JB금융, category: 금융지주, aliases: [JB금융, JB금융지주], ambiguous: []}
+  - {name: 메리츠금융, category: 금융지주, aliases: [메리츠금융, 메리츠금융지주], ambiguous: [메리츠]}
+  # ── 증권
+  - {name: 미래에셋증권, category: 증권, aliases: [미래에셋증권, 미래에셋, 미래에셋대우], ambiguous: []}
+  - {name: 한국투자증권, category: 증권, aliases: [한국투자증권, 한국투자], ambiguous: [한투]}
+  - {name: 삼성증권, category: 증권, aliases: [삼성증권], ambiguous: []}
+  - {name: NH투자증권, category: 증권, aliases: [NH투자증권, NH투자, 나무증권], ambiguous: []}
+  - {name: KB증권, category: 증권, aliases: [KB증권], ambiguous: []}
+  - {name: 키움증권, category: 증권, aliases: [키움증권], ambiguous: [키움]}
+  - {name: 토스증권, category: 증권, aliases: [토스증권], ambiguous: []}
+  - {name: 신한투자증권, category: 증권, aliases: [신한투자증권, 신한투자, 신한금융투자], ambiguous: []}
+  - {name: 대신증권, category: 증권, aliases: [대신증권], ambiguous: []}
+  - {name: 하나증권, category: 증권, aliases: [하나증권], ambiguous: []}
+  - {name: 메리츠증권, category: 증권, aliases: [메리츠증권], ambiguous: []}
+  - {name: 카카오페이증권, category: 증권, aliases: [카카오페이증권, 카페증권], ambiguous: []}
+  - {name: 한화투자증권, category: 증권, aliases: [한화투자증권], ambiguous: []}
+  - {name: 유안타증권, category: 증권, aliases: [유안타증권, 유안타], ambiguous: []}
+  - {name: 이베스트투자증권, category: 증권, aliases: [LS증권, 이베스트투자증권, 이베스트], ambiguous: []}
+  # ── 보험
+  - {name: 삼성생명, category: 보험, aliases: [삼성생명], ambiguous: []}
+  - {name: 삼성화재, category: 보험, aliases: [삼성화재], ambiguous: []}
+  - {name: 한화생명, category: 보험, aliases: [한화생명], ambiguous: []}
+  - {name: 교보생명, category: 보험, aliases: [교보생명], ambiguous: []}
+  - {name: 현대해상, category: 보험, aliases: [현대해상], ambiguous: []}
+  - {name: DB손해보험, category: 보험, aliases: [DB손해보험, DB손보], ambiguous: []}
+  - {name: KB손해보험, category: 보험, aliases: [KB손해보험, KB손보], ambiguous: []}
+  - {name: 메리츠화재, category: 보험, aliases: [메리츠화재], ambiguous: []}
+  - {name: 실손보험, category: 보험상품, aliases: [실손보험, 실비보험, 실손], ambiguous: [실비]}
+  # ── 카드·페이
+  - {name: 신한카드, category: 카드, aliases: [신한카드], ambiguous: []}
+  - {name: 삼성카드, category: 카드, aliases: [삼성카드], ambiguous: []}
+  - {name: 현대카드, category: 카드, aliases: [현대카드], ambiguous: []}
+  - {name: KB국민카드, category: 카드, aliases: [국민카드, KB국민카드, KB카드], ambiguous: []}
+  - {name: 롯데카드, category: 카드, aliases: [롯데카드], ambiguous: []}
+  - {name: 우리카드, category: 카드, aliases: [우리카드], ambiguous: []}
+  - {name: 하나카드, category: 카드, aliases: [하나카드], ambiguous: []}
+  - {name: BC카드, category: 카드, aliases: [BC카드, 비씨카드], ambiguous: []}
+  - {name: NH농협카드, category: 카드, aliases: [농협카드, NH카드], ambiguous: []}
+  - {name: 토스, category: 핀테크, aliases: [비바리퍼블리카], ambiguous: [토스]}
+  - {name: 카카오페이, category: 핀테크, aliases: [카카오페이], ambiguous: []}
+  - {name: 네이버페이, category: 핀테크, aliases: [네이버페이, 네페, 엔페이], ambiguous: []}
+  - {name: 삼성페이, category: 핀테크, aliases: [삼성페이], ambiguous: []}
+  - {name: 애플페이, category: 핀테크, aliases: [애플페이], ambiguous: []}
+  # ── 가상자산 거래소
+  - {name: 업비트, category: 가상자산, aliases: [업비트, 두나무], ambiguous: []}
+  - {name: 빗썸, category: 가상자산, aliases: [빗썸], ambiguous: []}
+  - {name: 코인원, category: 가상자산, aliases: [코인원], ambiguous: []}
+  # ── 당국·기관
+  - {name: 금융감독원, category: 당국, aliases: [금융감독원, 금감원], ambiguous: []}
+  - {name: 금융위원회, category: 당국, aliases: [금융위원회, 금융위], ambiguous: []}
+  - {name: 한국은행, category: 당국, aliases: [한국은행], ambiguous: [한은]}
+  - {name: 예금보험공사, category: 당국, aliases: [예금보험공사], ambiguous: [예보]}
+  - {name: 한국거래소, category: 당국, aliases: [한국거래소, KRX], ambiguous: []}
+  - {name: 국민연금, category: 당국, aliases: [국민연금, 국민연금공단, 연기금], ambiguous: []}
+  - {name: 미국연준, category: 당국, aliases: [연준, FOMC, 연방준비제도, 파월], ambiguous: [Fed]}
+
+topics:
+  # ── 금리·통화
+  - {name: 기준금리, category: 금리, aliases: [기준금리], ambiguous: []}
+  - {name: 금리인하, category: 금리, aliases: [금리인하, 금리 인하, 금리내림, 빅컷], ambiguous: []}
+  - {name: 금리인상, category: 금리, aliases: [금리인상, 금리 인상, 금리올림], ambiguous: []}
+  - {name: 금리, category: 금리, aliases: [금리, 이자율], ambiguous: []}
+  - {name: 환율, category: 환율, aliases: [환율, 원달러, 원/달러, 달러환율, 엔화, 엔저, 엔환율], ambiguous: [달러]}
+  - {name: 인플레이션, category: 경제지표, aliases: [인플레이션, 인플레, 물가상승, CPI, 소비자물가], ambiguous: [물가]}
+  - {name: 경기침체, category: 경제지표, aliases: [경기침체, 리세션, 스태그플레이션], ambiguous: []}
+  # ── 대출
+  - {name: 주택담보대출, category: 대출, aliases: [주택담보대출, 주담대, 주택 담보 대출], ambiguous: []}
+  - {name: 전세대출, category: 대출, aliases: [전세대출, 전세자금대출], ambiguous: []}
+  - {name: 신용대출, category: 대출, aliases: [신용대출, 마이너스통장], ambiguous: [마통]}
+  - {name: DSR, category: 대출규제, aliases: [DSR, 스트레스DSR, 총부채원리금상환비율], ambiguous: []}
+  - {name: LTV, category: 대출규제, aliases: [LTV, DTI], ambiguous: []}
+  - {name: 대출규제, category: 대출규제, aliases: [대출규제, 가계대출 규제, 대출 규제, 대출총량], ambiguous: []}
+  - {name: 대출, category: 대출, aliases: [대출, 대출금리], ambiguous: []}
+  - {name: 대환대출, category: 대출, aliases: [대환대출, 대환], ambiguous: []}
+  - {name: 디딤돌대출, category: 대출, aliases: [디딤돌대출, 보금자리론, 신생아특례], ambiguous: [디딤돌]}
+  # ── 예적금·통장
+  - {name: 예금, category: 예적금, aliases: [예금, 정기예금, 예금금리], ambiguous: []}
+  - {name: 적금, category: 예적금, aliases: [적금, 정기적금], ambiguous: []}
+  - {name: 파킹통장, category: 예적금, aliases: [파킹통장, 파킹 통장], ambiguous: [파킹]}
+  - {name: CMA, category: 예적금, aliases: [CMA, 발행어음], ambiguous: []}
+  - {name: 예금자보호, category: 예적금, aliases: [예금자보호, 예금보호한도, 예금보호], ambiguous: []}
+  - {name: 청년도약계좌, category: 정책금융, aliases: [청년도약계좌, 청년미래적금, 청년희망적금], ambiguous: []}
+  - {name: 청약통장, category: 예적금, aliases: [청약통장, 주택청약, 청약저축], ambiguous: []}
+  # ── 투자
+  - {name: 코스피, category: 증시, aliases: [코스피, KOSPI], ambiguous: []}
+  - {name: 코스닥, category: 증시, aliases: [코스닥, KOSDAQ], ambiguous: []}
+  - {name: 나스닥, category: 증시, aliases: [나스닥, NASDAQ], ambiguous: []}
+  - {name: S&P500, category: 증시, aliases: [S&P500, S&P 500, 에스앤피], ambiguous: []}
+  - {name: 미국주식, category: 증시, aliases: [미국주식, 미국 주식, 해외주식, 서학개미], ambiguous: [미장]}
+  - {name: 국내주식, category: 증시, aliases: [국내주식, 국내 주식, 동학개미], ambiguous: [국장]}
+  - {name: 주식, category: 증시, aliases: [주식, 주가, 증시], ambiguous: []}
+  - {name: 공매도, category: 증시, aliases: [공매도], ambiguous: []}
+  - {name: 배당, category: 증시, aliases: [배당금, 배당주, 고배당, 배당락], ambiguous: [배당]}
+  - {name: 밸류업, category: 증시, aliases: [밸류업, 기업가치제고], ambiguous: []}
+  - {name: 공모주, category: 증시, aliases: [공모주, IPO, 따상], ambiguous: [상장]}
+  - {name: ETF, category: 투자상품, aliases: [ETF, 상장지수펀드], ambiguous: []}
+  - {name: 펀드, category: 투자상품, aliases: [펀드], ambiguous: []}
+  - {name: 채권, category: 투자상품, aliases: [국채, 국고채, 미국채, 채권금리], ambiguous: [채권]}
+  - {name: 금투자, category: 투자상품, aliases: [금값, 금시세, 금ETF, 골드바, 금테크], ambiguous: []}
+  - {name: 리츠, category: 투자상품, aliases: [리츠, REITs], ambiguous: []}
+  - {name: ELS, category: 투자상품, aliases: [ELS, 홍콩ELS], ambiguous: []}
+  - {name: 레버리지, category: 투자상품, aliases: [레버리지, TQQQ, SOXL, 신용거래, 빚투, 반대매매], ambiguous: []}
+  # ── 연금·세제
+  - {name: ISA, category: 연금·세제, aliases: [ISA, 개인종합자산관리계좌], ambiguous: []}
+  - {name: IRP, category: 연금·세제, aliases: [IRP, 퇴직연금], ambiguous: []}
+  - {name: 연금저축, category: 연금·세제, aliases: [연금저축, 연금저축펀드, 연금계좌], ambiguous: []}
+  - {name: 금투세, category: 연금·세제, aliases: [금투세, 금융투자소득세], ambiguous: []}
+  - {name: 연말정산, category: 연금·세제, aliases: [연말정산, 소득공제, 세액공제], ambiguous: []}
+  # ── 가상자산
+  - {name: 비트코인, category: 가상자산, aliases: [비트코인, BTC], ambiguous: [비코]}
+  - {name: 이더리움, category: 가상자산, aliases: [이더리움, ETH], ambiguous: []}
+  - {name: 리플, category: 가상자산, aliases: [XRP], ambiguous: [리플]}
+  - {name: 스테이블코인, category: 가상자산, aliases: [스테이블코인, USDT, USDC, 원화스테이블코인, 테더], ambiguous: []}
+  - {name: 가상자산, category: 가상자산, aliases: [가상자산, 가상화폐, 암호화폐], ambiguous: [코인]}
+  # ── 카드·결제
+  - {name: 신용카드, category: 카드·결제, aliases: [신용카드, 체크카드, 카드혜택, 카드실적, 카드사], ambiguous: []}
+  - {name: 페이백, category: 카드·결제, aliases: [페이백, 캐시백, 상생페이백], ambiguous: []}
+  - {name: 리볼빙, category: 카드·결제, aliases: [리볼빙, 카드론, 현금서비스], ambiguous: []}
+  # ── 부동산 금융·리스크
+  - {name: 전세사기, category: 금융사고, aliases: [전세사기, 깡통전세], ambiguous: []}
+  - {name: 보이스피싱, category: 금융사고, aliases: [보이스피싱, 스미싱], ambiguous: [피싱]}
+  - {name: PF부실, category: 금융사고, aliases: [PF부실, 부동산PF, PF대출], ambiguous: [PF]}
+  - {name: 뱅크런, category: 금융사고, aliases: [뱅크런], ambiguous: []}
+  - {name: 개인회생, category: 금융사고, aliases: [개인회생, 신용회복, 채무조정, 파산신청], ambiguous: []}
+  - {name: 신용점수, category: 대출, aliases: [신용점수, 신용등급, 나이스점수, KCB], ambiguous: []}
+
+# 문맥 판단에 쓰이는 일반 금융 단어(이 단어들은 집계하지 않고 "금융 문맥" 판별에만 사용)
+context_words: [돈, 투자, 수익, 손실, 원금, 이자, 계좌, 통장, 은행, 증권, 보험, 카드, 매수, 매도, 상승, 하락, 폭락, 급등, 대출, 금리, 주식, 코인, 환전, 송금, 결제, 상환, 만기, 수수료]

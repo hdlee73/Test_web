@@ -1,0 +1,129 @@
+"""설정 파일 로딩."""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+ROOT = Path(__file__).resolve().parent.parent
+CONFIG_DIR = ROOT / "config"
+
+VALID_TYPES = {"rss", "link_regex"}
+
+
+@dataclass(frozen=True)
+class Source:
+    id: str
+    site: str
+    board: str
+    type: str
+    url: str
+    post_pattern: re.Pattern[str]
+    link_template: str | None = None
+    finance_board: bool = False
+    enabled: bool = True
+    verified: str = "unknown"
+
+    @property
+    def label(self) -> str:
+        return f"{self.site} {self.board}"
+
+
+@dataclass(frozen=True)
+class Defaults:
+    min_interval_sec: float = 6.0
+    timeout_sec: float = 15.0
+    backoff_hours: tuple[float, ...] = (1, 3, 6, 24)
+
+
+@dataclass(frozen=True)
+class WatchItem:
+    keyword: str
+    synonyms: tuple[str, ...] = ()
+    exclude: tuple[str, ...] = ()
+    sources: tuple[str, ...] = ()
+
+
+@dataclass
+class Settings:
+    defaults: Defaults
+    sources: list[Source] = field(default_factory=list)
+
+
+def _load_yaml(path: Path) -> Any:
+    with path.open(encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+def load_sources(path: Path | None = None) -> Settings:
+    data = _load_yaml(path or CONFIG_DIR / "sources.yaml")
+    d = data.get("defaults") or {}
+    defaults = Defaults(
+        min_interval_sec=float(d.get("min_interval_sec", 6)),
+        timeout_sec=float(d.get("timeout_sec", 15)),
+        backoff_hours=tuple(float(x) for x in d.get("backoff_hours", (1, 3, 6, 24))) or (1,),
+    )
+    seen: set[str] = set()
+    sources: list[Source] = []
+    for raw in data.get("sources") or []:
+        sid = str(raw["id"])
+        if sid in seen:
+            raise ValueError(f"중복된 source id: {sid}")
+        seen.add(sid)
+        stype = str(raw.get("type", "link_regex"))
+        if stype not in VALID_TYPES:
+            raise ValueError(f"{sid}: 알 수 없는 type {stype}")
+        sources.append(
+            Source(
+                id=sid,
+                site=str(raw.get("site", sid)),
+                board=str(raw.get("board", "")),
+                type=stype,
+                url=str(raw["url"]),
+                post_pattern=re.compile(str(raw["post_pattern"])),
+                link_template=raw.get("link_template"),
+                finance_board=bool(raw.get("finance_board", False)),
+                enabled=bool(raw.get("enabled", True)),
+                verified=str(raw.get("verified", "unknown")),
+            )
+        )
+    return Settings(defaults=defaults, sources=sources)
+
+
+def load_dictionary(path: Path | None = None) -> dict[str, Any]:
+    return _load_yaml(path or CONFIG_DIR / "finance_dict.yaml")
+
+
+def load_watchlist(path: Path | None = None) -> list[WatchItem]:
+    p = path or CONFIG_DIR / "watchlist.yaml"
+    if not p.exists():
+        return []
+    items = []
+    for raw in (_load_yaml(p).get("watchlist") or []):
+        kw = str(raw.get("keyword", "")).strip()
+        if not kw:
+            continue
+        items.append(
+            WatchItem(
+                keyword=kw,
+                synonyms=tuple(str(x).strip() for x in raw.get("synonyms") or [] if str(x).strip()),
+                exclude=tuple(str(x).strip() for x in raw.get("exclude") or [] if str(x).strip()),
+                sources=tuple(str(x) for x in raw.get("sources") or []),
+            )
+        )
+    return items
+
+
+def load_stopwords(path: Path | None = None) -> set[str]:
+    p = path or CONFIG_DIR / "stopwords.txt"
+    if not p.exists():
+        return set()
+    words = set()
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            words.add(line)
+    return words
