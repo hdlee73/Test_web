@@ -8,7 +8,9 @@ export const APP_VERSION = "0.1.0";
 const REPO = "hdlee73/Test_web";
 
 const MENU = [
-  ["trend", "금융 키워드 트렌드"],
+  ["home", "대시보드"],
+  ["trend", "키워드 순위"],
+  ["heat", "게시판별 히트맵"],
   ["spikes", "급상승"],
   ["posts", "게시물 검색"],
   ["watch", "관심 키워드"],
@@ -26,7 +28,7 @@ let ctx = { meta: null, trends: null, error: null };
 function route() {
   const raw = location.hash.replace(/^#\/?/, "");
   const [path, qs] = raw.split("?");
-  const id = MENU.some((m) => m[0] === path) ? path : "trend";
+  const id = MENU.some((m) => m[0] === path) ? path : "home";
   return { id, params: Object.fromEntries(new URLSearchParams(qs || "")) };
 }
 export function go(id, params = {}) {
@@ -53,6 +55,7 @@ const sourceName = (id) => {
   return s ? `${s.site} ${s.board}` : id;
 };
 const sourceShort = (id) => ctx.meta?.sources.find((x) => x.id === id)?.site ?? id;
+const sourceLabel = (id) => { const s = ctx.meta?.sources.find((x) => x.id === id); return s ? `${s.site} ${s.board}` : id; };
 function sourceColor(id) {
   const i = ctx.meta.sources.filter((s) => s.enabled).findIndex((s) => s.id === id);
   return BOARD_COLORS[(i < 0 ? 0 : i) % BOARD_COLORS.length];
@@ -123,6 +126,78 @@ function viewTrend(params) {
 }
 const kpi = (v, l) => h("div", { class: "kpi" }, h("b", null, v), h("span", null, l));
 const notice = () => h("p", { class: "notice" }, ctx.meta.notice);
+
+// ── 대시보드(첫 화면): 수집 현황 + 오늘 순위 + 관심 키워드 새 글 + 급상승
+async function viewHome() {
+  const win = ctx.trends.windows.today;
+  const okBoards = ctx.meta.sources.filter((s) => s.enabled && (s.status === "ok" || s.status === "empty")).length;
+  const enabled = ctx.meta.sources.filter((s) => s.enabled && s.status !== "no_key").length;
+  const share = win.total_posts ? Math.round((win.finance_posts / win.total_posts) * 100) : 0;
+  const top = win.keywords.slice(0, 8);
+  const max = top[0]?.posts || 1;
+  const watchBox = h("div", { class: "card" }, h("h2", null, "내 관심 키워드 새 글(오늘)"), h("p", { class: "small muted" }, "불러오는 중…"));
+  const box = h("div", { class: "wrap" },
+    h("div", { class: "kpis" },
+      kpi(win.total_posts.toLocaleString("ko-KR"), "오늘 수집 글"),
+      kpi(share + "%", "금융 관련 글 비중"),
+      kpi(`${okBoards}/${enabled}`, "정상 게시판"),
+      kpi(String(ctx.trends.spikes.length), "급상승 키워드")),
+    h("div", { class: "two" },
+      h("div", { class: "card" }, h("h2", null, "오늘 순위"),
+        top.length === 0 ? h("p", { class: "small muted" }, "아직 집계된 키워드가 없습니다.") : top.map((k, i) =>
+          h("div", { class: "hrow", tabindex: "0", role: "link", "aria-label": `${k.keyword} 게시물 보기`, onclick: () => go("posts", { k: k.keyword, w: "today" }), onkeydown: (e) => { if (e.key === "Enter") go("posts", { k: k.keyword, w: "today" }); } },
+            h("span", { class: "rk" }, i + 1), h("span", { class: "nm" }, k.keyword),
+            h("span", { class: "bar" }, h("i", { style: { width: (k.posts / max) * 100 + "%" } })),
+            h("span", { class: "num" }, k.posts))),
+        h("div", { style: { marginTop: "8px" } }, h("button", { class: "btn ghost sm", type: "button", onclick: () => go("trend") }, "전체 순위(오늘·3일·5일)"), " ",
+          h("button", { class: "btn ghost sm", type: "button", onclick: () => go("heat") }, "게시판별 히트맵"))),
+      watchBox),
+    h("div", { class: "card" }, h("h2", null, "급상승"),
+      ctx.trends.spikes.length === 0 ? h("p", { class: "small muted" }, "지금은 급상승 키워드가 없습니다. 데이터가 며칠 쌓이면 표시됩니다.")
+        : h("div", { class: "row" }, ctx.trends.spikes.slice(0, 8).map((sp) =>
+            h("button", { class: "chip " + (sp.new ? "warm" : "acc"), type: "button", style: { border: 0, cursor: "pointer" }, onclick: () => go("posts", { k: sp.keyword, w: "today" }) }, `${sp.keyword} ${sp.new ? "NEW" : "×" + sp.ratio}`)))),
+    notice());
+  const mine = renderSeq;
+  const list = loadWatch();
+  if (list.length === 0) {
+    watchBox.replaceChildren(h("h2", null, "내 관심 키워드 새 글(오늘)"), h("p", { class: "small muted" }, "등록한 관심 키워드가 없습니다."),
+      h("div", { style: { marginTop: "8px" } }, h("button", { class: "btn sm", type: "button", onclick: () => go("watch") }, "관심 키워드 등록")));
+    return box;
+  }
+  const posts = (await loadPosts(ctx.meta, 1)).filter((p) => p.at >= win.from).sort((a, b) => (a.at < b.at ? 1 : -1));
+  if (mine !== renderSeq) return box;
+  watchBox.replaceChildren(h("h2", null, "내 관심 키워드 새 글(오늘)"), ...list.slice(0, 6).map((item) => {
+    const hits = posts.filter((p) => matchesWatch(item, p));
+    return h("div", { class: "witem" },
+      h("div", { class: "row" }, h("b", null, item.k), h("span", { class: "chip " + (hits.length ? "warm" : "") }, `새 글 ${hits.length}`)),
+      hits[0] ? postRow(hits[0]) : null);
+  }), h("div", { style: { marginTop: "6px" } }, h("button", { class: "btn ghost sm", type: "button", onclick: () => go("watch") }, "관심 키워드 관리")));
+  return box;
+}
+
+// ── 게시판별 히트맵(키워드 × 게시판, 글 천 건당 언급)
+function viewHeat(params) {
+  const w = WINDOWS.some((x) => x[0] === params.w) ? params.w : "3d";
+  const win = ctx.trends.windows[w];
+  const boards = Object.entries(win.by_source).filter(([, n]) => n > 0).slice(0, 12).map(([id]) => id);
+  const rows = win.keywords.slice(0, 14);
+  const per = (k, b) => ((k.sources[b] || 0) / win.by_source[b]) * 1000;
+  const peak = Math.max(1, ...rows.flatMap((k) => boards.map((b) => per(k, b))));
+  const grid = h("div", { class: "heat", style: { gridTemplateColumns: `104px repeat(${boards.length}, minmax(48px, 1fr))` } },
+    h("div"), boards.map((b) => h("div", { class: "h" }, sourceLabel(b))),
+    rows.map((k) => [
+      h("div", { class: "hk" }, k.keyword),
+      boards.map((b) => {
+        const v = per(k, b), lv = v === 0 ? 0 : Math.min(4, 1 + Math.floor((v / peak) * 3.999));
+        return h("div", { class: "c", style: { background: `var(--h${lv})`, color: lv >= 3 ? "#fff" : "inherit", fontWeight: lv >= 3 ? "600" : "400", cursor: k.sources[b] ? "pointer" : "default" },
+          title: `${sourceName(b)} · ${k.keyword}: ${k.sources[b] || 0}건`, onclick: () => k.sources[b] && go("posts", { k: k.keyword, w, b }) }, v ? Math.round(v) : "");
+      })]));
+  return h("div", { class: "wrap" },
+    h("div", { class: "row" }, segmented(w, (id) => go("heat", { w: id })), h("span", { class: "small muted" }, "숫자 = 그 게시판 글 천 건당 언급 수 · 칸을 누르면 게시물 목록")),
+    rows.length === 0 ? stateBox("이 기간에는 집계된 키워드가 없습니다.") : h("div", { class: "card tablewrap" }, grid),
+    h("div", { class: "legend" }, h("span", null, "적음"), [0, 1, 2, 3, 4].map((l) => h("span", null, h("i", { style: { background: `var(--h${l})` } }))), h("span", null, "많음")),
+    notice());
+}
 
 // ── 급상승
 function viewSpikes() {
@@ -306,7 +381,7 @@ async function render() {
     content.replaceChildren(stateBox("아직 수집된 데이터가 없습니다. 첫 수집이 끝나면 표시됩니다(보통 30분 이내).", h("div", { style: { marginTop: "10px" } }, h("button", { class: "btn ghost sm", type: "button", onclick: refresh }, "다시 불러오기"))));
     return;
   }
-  const view = { trend: viewTrend, spikes: viewSpikes, posts: viewPosts, watch: viewWatch, boards: viewBoards, info: viewInfo }[id];
+  const view = { home: viewHome, heat: viewHeat, trend: viewTrend, spikes: viewSpikes, posts: viewPosts, watch: viewWatch, boards: viewBoards, info: viewInfo }[id];
   try {
     const node = await view(params);
     if (seq !== renderSeq) return;
