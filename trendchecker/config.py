@@ -11,7 +11,7 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = ROOT / "config"
 
-VALID_TYPES = {"rss", "link_regex"}
+VALID_TYPES = {"rss", "link_regex", "naver_api"}
 
 
 @dataclass(frozen=True)
@@ -26,6 +26,8 @@ class Source:
     finance_board: bool = False
     enabled: bool = True
     verified: str = "unknown"
+    endpoint: str | None = None      # naver_api: blog | cafearticle | news
+    pages: int = 1                   # naver_api: 질의어당 읽을 페이지 수(1페이지 = 최대 100건)
 
     @property
     def label(self) -> str:
@@ -83,11 +85,13 @@ def load_sources(path: Path | None = None) -> Settings:
                 board=str(raw.get("board", "")),
                 type=stype,
                 url=str(raw["url"]),
-                post_pattern=re.compile(str(raw["post_pattern"])),
+                post_pattern=re.compile(str(raw.get("post_pattern", "."))),
                 link_template=raw.get("link_template"),
                 finance_board=bool(raw.get("finance_board", False)),
                 enabled=bool(raw.get("enabled", True)),
                 verified=str(raw.get("verified", "unknown")),
+                endpoint=raw.get("endpoint"),
+                pages=max(1, min(10, int(raw.get("pages", 1)))),
             )
         )
     return Settings(defaults=defaults, sources=sources)
@@ -115,6 +119,18 @@ def load_watchlist(path: Path | None = None) -> list[WatchItem]:
             )
         )
     return items
+
+
+def load_naver_queries(path: Path | None = None) -> list[str]:
+    p = path or CONFIG_DIR / "naver_queries.txt"
+    if not p.exists():
+        return []
+    out: list[str] = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and line not in out:
+            out.append(line)
+    return out
 
 
 def load_stopwords(path: Path | None = None) -> set[str]:

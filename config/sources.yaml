@@ -166,6 +166,30 @@ sources:
     enabled: true
     verified: unknown
 
+  # ── 네이버 검색 API (공식 API, 키 필요: 환경변수 NAVER_CLIENT_ID / NAVER_CLIENT_SECRET)
+  # 질의어는 config/naver_queries.txt. 키가 없으면 status 가 no_key 로 표시되고 건너뛴다.
+  - id: naver_blog
+    site: 네이버
+    board: 블로그
+    type: naver_api
+    url: https://openapi.naver.com/v1/search/blog.json
+    endpoint: blog
+    pages: 1
+    finance_board: true
+    enabled: true
+    verified: allowed
+
+  - id: naver_cafe
+    site: 네이버
+    board: 카페글
+    type: naver_api
+    url: https://openapi.naver.com/v1/search/cafearticle.json
+    endpoint: cafearticle
+    pages: 1
+    finance_board: true
+    enabled: true
+    verified: allowed
+
   # 아래는 robots.txt 확인 시 차단으로 판단되어 기본 비활성
   - id: fmkorea_stock
     site: 에펨코리아

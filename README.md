@@ -41,8 +41,12 @@ python -m pytest -q                   # 테스트
 | watchlist.json | `config/watchlist.yaml` 매칭 결과 |
 | candidates.json | 사전에 없는 새 키워드 후보 (사전 보강용) |
 
-## 배포
-GitHub Actions 워크플로(`collect.yml`)는 수동 실행만 켜져 있습니다. 정기 실행과 Pages 배포는 명시적으로 지시할 때 켭니다.
+## 배포 (GitHub Pages)
+`.github/workflows/collect.yml` 이 30분마다 수집 → 분석 → `site/data/*.json` 생성 → Pages 배포를 합니다.
+- 저장소 Settings → Pages → Source 를 **GitHub Actions** 로 지정(한 번만).
+- 네이버 검색 API 를 쓰려면 Settings → Secrets and variables → Actions 에 `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` 을 추가합니다. 키가 없으면 해당 항목은 "API 키 없음"으로 표시되고 나머지는 정상 동작합니다. 질의어는 `config/naver_queries.txt`.
+- 공개 저장소는 60일간 저장소 활동이 없으면 예약 실행이 멈춥니다. 멈추면 Actions 탭에서 Run workflow 로 다시 시작합니다.
+- 수집 DB 는 Actions 캐시에 이어 저장되며, 잃어버려도 다음 수집부터 다시 쌓입니다(급상승·3일/5일 집계는 며칠 걸려 채워짐).
 
 ## FSS Insights 통합 계획
 - 이 저장소(`Test_web`)는 수집·분석과 JSON 산출을 맡고, 화면은 FSS Insights 웹(`fss-insights-web`)의 새 화면 `js/screens/trend.js` 로 만들어 `tools/sync_web_assets.py` 로 앱에 복사합니다.

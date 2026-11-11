@@ -82,6 +82,9 @@ def cmd_check(args) -> int:
         for src in settings.sources:
             if only and src.id not in only:
                 continue
+            if src.type == "naver_api":
+                print(f"{src.id:18} naver_api          (공식 API: 환경변수 NAVER_CLIENT_ID/SECRET 으로 `collect --only {src.id}` 실행)")
+                continue
             res = client.fetch(src.url)
             line = f"{src.id:18} {res.status:18} {res.detail}"
             if res.status == "ok":

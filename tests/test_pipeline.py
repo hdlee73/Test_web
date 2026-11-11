@@ -207,3 +207,49 @@ def test_build_cli_end_to_end(tmp_path, monkeypatch):
     cands = json.loads((tmp_path / "out" / "candidates.json").read_text(encoding="utf-8"))["candidates"]
     words = [c["word"] for c in cands]
     assert "수혜" in words and "스테이블코인" not in words and "정리" not in words
+
+
+def test_naver_api(tmp_path):
+    from trendchecker.collector.run import collect_naver
+    from trendchecker.collector.naver import parse_items, credentials
+
+    src = SOURCES["naver_blog"]
+    now = datetime(2026, 11, 11, 3, tzinfo=timezone.utc)  # KST 12:00
+    seen = []
+
+    def handler(req):
+        seen.append((req.url.params["query"], req.headers.get("x-naver-client-id")))
+        if req.url.params["query"] == "에러":
+            return httpx.Response(500)
+        items = [
+            {"title": "<b>파킹통장</b> 금리 비교 &amp; 후기", "link": "https://blog.naver.com/a/1", "postdate": "20261111"},
+            {"title": "예전 글 <b>금리</b>", "link": "https://blog.naver.com/a/2", "postdate": "20261109"},
+            {"title": "x", "link": "https://blog.naver.com/a/3"},                      # 제목 너무 짧음
+            {"title": "위험 링크", "link": "javascript:alert(1)"},
+        ]
+        return httpx.Response(200, json={"items": items})
+
+    store = Store(tmp_path / "n.db")
+    tr = httpx.MockTransport(handler)
+    # 키 없음
+    r = collect_naver(store, src, (1,), env={}, transport=tr, now=now, queries=["금리"], sleep=lambda s: None)
+    assert r.status == "no_key" and seen == []
+    env = {"NAVER_CLIENT_ID": "id", "NAVER_CLIENT_SECRET": "sec"}
+    r = collect_naver(store, src, (1,), env=env, transport=tr, now=now, queries=["금리", "에러", "파킹통장"], sleep=lambda s: None)
+    assert r.status == "ok" and r.fetched == 2 and r.new == 2
+    assert [q for q, _ in seen] == ["금리", "에러", "파킹통장"] and all(i == "id" for _, i in seen)
+    posts = {p.title: p for p in store.posts_since(now - timedelta(days=5))}
+    assert "파킹통장 금리 비교 & 후기" in posts and "예전 글 금리" in posts
+    old = posts["예전 글 금리"]
+    assert old.posted_at.astimezone(timezone(timedelta(hours=9))).strftime("%m-%d %H") == "11-09 12"  # 어제 이전 글은 그날 정오(KST)
+    assert posts["파킹통장 금리 비교 & 후기"].posted_at == now                                         # 오늘 글은 수집 시각
+
+    # 인증 오류·한도 초과
+    r = collect_naver(store, src, (1,), env=env, transport=httpx.MockTransport(lambda q: httpx.Response(401)), now=now, queries=["a"], sleep=lambda s: None)
+    assert r.status == "error" and "인증" in r.detail
+    r = collect_naver(store, src, (1, 3), env=env, transport=httpx.MockTransport(lambda q: httpx.Response(429)), now=now, queries=["a"], sleep=lambda s: None)
+    assert r.status == "blocked"
+    r = collect_naver(store, src, (1, 3), env=env, transport=tr, now=now + timedelta(minutes=10), queries=["a"], sleep=lambda s: None)
+    assert r.status == "backoff"
+    store.close()
+    assert credentials({"NAVER_CLIENT_ID": " ", "NAVER_CLIENT_SECRET": "x"}) is None

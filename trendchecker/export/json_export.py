@@ -23,7 +23,7 @@ from ..config import Settings, WatchItem
 from ..storage.db import SourceState
 
 SCHEMA_VERSION = 1
-NOTICE = ("각 게시판의 공개 목록에서 제목과 링크만 수집해 키워드를 집계합니다. "
+NOTICE = ("각 게시판의 공개 목록과 네이버 검색 API(블로그·카페글) 결과에서 제목과 링크만 수집해 키워드를 집계합니다. "
           "게시물 본문과 작성자 정보는 저장하지 않으며, 모든 글의 권리는 원 게시판과 작성자에게 있습니다.")
 
 

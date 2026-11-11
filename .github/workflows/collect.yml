@@ -1,24 +1,29 @@
-# 수집 → 분석 → JSON 산출.
-# 배포 보류 원칙에 따라 지금은 수동 실행(workflow_dispatch)만 켜 두었다.
-# 정기 실행은 사용자가 명시적으로 지시하면 아래 schedule 주석을 해제한다.
-name: collect
+# 30분마다 수집 → 분석 → JSON 생성 → GitHub Pages 배포.
+# 사전 준비(한 번만): 저장소 Settings → Pages → Source 를 "GitHub Actions" 로 지정,
+# (선택) Settings → Secrets and variables → Actions 에 NAVER_CLIENT_ID, NAVER_CLIENT_SECRET 추가.
+name: collect-and-deploy
 
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: "*/30 * * * *"   # 30분마다 (UTC 기준, GitHub 사정으로 지연될 수 있음)
+  schedule:
+    - cron: "7,37 * * * *"   # UTC 기준 매시 7분·37분 (GitHub 사정으로 지연될 수 있음)
 
 concurrency:
-  group: collect
+  group: collect-and-deploy
   cancel-in-progress: false
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 jobs:
-  collect:
+  run:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,7 +41,11 @@ jobs:
           key: trend-db-${{ github.run_id }}
           restore-keys: trend-db-
 
-      - run: python -m trendchecker run
+      - name: 수집·분석
+        env:
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+        run: python -m trendchecker run
 
       - uses: actions/cache/save@v4
         if: always()
@@ -44,11 +53,25 @@ jobs:
           path: state
           key: trend-db-${{ github.run_id }}
 
-      - uses: actions/upload-artifact@v4
+      - name: 로그 보관
         if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: data-and-logs
-          path: |
-            site/data
-            logs
+          name: logs
+          path: logs
           retention-days: 3
+          if-no-files-found: ignore
+
+      - name: 사이트 파일 모으기
+        run: |
+          mkdir -p _site
+          cp -r site/. _site/
+          touch _site/.nojekyll
+          test -f _site/data/meta.json || echo "수집 결과가 없어 빈 화면 상태로 배포합니다"
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
