@@ -37,6 +37,12 @@ h1,h2,h3,p{margin:0}
 .ib{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-size:16px;line-height:1}
 .ib:hover{background:var(--chip)}
 .hamb{display:none}
+.tabs{display:flex;gap:4px;overflow-x:auto;padding:0 16px;background:var(--card);border-bottom:1px solid var(--line);scrollbar-width:none;flex:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{border:0;background:none;color:var(--muted);padding:11px 12px;cursor:pointer;white-space:nowrap;font:inherit;border-bottom:2px solid transparent;display:flex;gap:6px;align-items:center}
+.tab:hover{color:var(--fg)}
+.tab.on{color:var(--acc);font-weight:700;border-bottom-color:var(--acc)}
+.tab .badge{font-size:11px;background:var(--side-accent);color:#fff;border-radius:999px;padding:0 7px}
 .content{flex:1;overflow-y:auto;padding:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-bottom:max(32px,env(safe-area-inset-bottom,0px))}
 .wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 .state{padding:48px 16px;text-align:center;color:var(--muted)}

@@ -1,7 +1,7 @@
 // 커뮤니티 금융 트렌드: 정적 JSON(data/*.json)만 읽는 단독 웹 화면.
 // 모든 글자는 textContent 로만 넣고, 링크는 http(s)만 허용한다(수집 데이터는 외부 입력이므로).
 import { dayFiles, loadMeta, loadPosts, loadTrends } from "./data.js";
-import { BOARD_COLORS, fmtDateTime, h, safeUrl, sparkline, store, compact } from "./ui.js";
+import { BOARD_COLORS, fmtDateTime, h, safeUrl, sparkline, store, compact, setChildren } from "./ui.js";
 
 export const APP_NAME = "커뮤니티 금융 트렌드";
 export const APP_VERSION = "0.1.0";
@@ -40,13 +40,16 @@ export function go(id, params = {}) {
 
 // ── 메뉴
 function renderMenu(active) {
+  // 왼쪽 패널에는 이 도구 한 줄만 둔다(FSS Insights 통합 시 같은 모양). 하위 화면은 상단 탭.
   $("side").replaceChildren(
     h("div", { class: "brand" }, h("img", { src: "icon.svg", alt: "" }), APP_NAME),
-    ...MENU.map(([id, label]) =>
-      h("button", { class: "mi" + (id === active ? " on" : ""), type: "button", "aria-current": id === active ? "page" : null, onclick: () => { document.body.classList.remove("open"); go(id); } },
-        label, id === "spikes" && ctx.trends?.spikes?.length ? h("span", { class: "badge" }, ctx.trends.spikes.length) : null)),
+    h("button", { class: "mi on", type: "button", "aria-current": "page", onclick: () => { document.body.classList.remove("open"); go("home"); } }, APP_NAME),
     h("div", { class: "foot" }, `v${APP_VERSION}`),
   );
+  setChildren($("tabs"), MENU.map(([id, label]) =>
+    h("button", { class: "tab" + (id === active ? " on" : ""), type: "button", role: "tab", "aria-selected": id === active ? "true" : "false", onclick: () => go(id) },
+      label, id === "spikes" && ctx.trends?.spikes?.length ? h("span", { class: "badge" }, ctx.trends.spikes.length) : null)));
+  $("tabs").querySelector(".on")?.scrollIntoView({ block: "nearest", inline: "center" });
 }
 
 // ── 화면 공통
@@ -160,13 +163,13 @@ async function viewHome() {
   const mine = renderSeq;
   const list = loadWatch();
   if (list.length === 0) {
-    watchBox.replaceChildren(h("h2", null, "내 관심 키워드 새 글(오늘)"), h("p", { class: "small muted" }, "등록한 관심 키워드가 없습니다."),
+    setChildren(watchBox, h("h2", null, "내 관심 키워드 새 글(오늘)"), h("p", { class: "small muted" }, "등록한 관심 키워드가 없습니다."),
       h("div", { style: { marginTop: "8px" } }, h("button", { class: "btn sm", type: "button", onclick: () => go("watch") }, "관심 키워드 등록")));
     return box;
   }
   const posts = (await loadPosts(ctx.meta, 1)).filter((p) => p.at >= win.from).sort((a, b) => (a.at < b.at ? 1 : -1));
   if (mine !== renderSeq) return box;
-  watchBox.replaceChildren(h("h2", null, "내 관심 키워드 새 글(오늘)"), ...list.slice(0, 6).map((item) => {
+  setChildren(watchBox, h("h2", null, "내 관심 키워드 새 글(오늘)"), ...list.slice(0, 6).map((item) => {
     const hits = posts.filter((p) => matchesWatch(item, p));
     return h("div", { class: "witem" },
       h("div", { class: "row" }, h("b", null, item.k), h("span", { class: "chip " + (hits.length ? "warm" : "") }, `새 글 ${hits.length}`)),
@@ -243,7 +246,7 @@ async function viewPosts(params) {
   const total = rows.length;
   let shown = 100;
   const draw = () => {
-    holder.replaceChildren(
+    setChildren(holder,
       h("div", { class: "small muted", style: { marginBottom: "6px" } }, `${total.toLocaleString("ko-KR")}건` + (!k && !kw ? " (금융 관련 글만)" : "")),
       total === 0 ? stateBox("조건에 맞는 글이 없습니다.") : rows.slice(0, shown).map((p) => postRow(p, kw || "")),
       total > shown ? h("button", { class: "btn ghost sm", type: "button", onclick: () => { shown += 100; draw(); } }, "더 보기") : null);
@@ -285,7 +288,7 @@ async function viewWatch() {
   const mine = renderSeq;
   const posts = (await loadPosts(ctx.meta, 5)).sort((a, b) => (a.at < b.at ? 1 : -1));
   if (mine !== renderSeq) return box;
-  holder.replaceChildren(...list.map((item) => {
+  setChildren(holder, ...list.map((item) => {
     const hits = posts.filter((p) => matchesWatch(item, p));
     return h("div", { class: "card" },
       h("div", { class: "row", style: { marginBottom: "6px" } },
@@ -330,7 +333,7 @@ function viewInfo() {
       if (!r.ok) throw new Error(String(r.status));
       const j = await r.json();
       const latest = String(j.tag_name || "").replace(/^v/, "");
-      upd.replaceChildren(latest && latest !== APP_VERSION
+      setChildren(upd, latest && latest !== APP_VERSION
         ? ["새 버전 ", h("b", null, latest), " 이(가) 있습니다. ", h("a", { href: safeUrl(j.html_url) || "#", target: "_blank", rel: "noopener noreferrer", style: { textDecoration: "underline" } }, "릴리스 보기")]
         : "최신 버전입니다.");
     } catch { upd.textContent = "업데이트를 확인하지 못했습니다. 인터넷 연결을 확인해 주세요."; }

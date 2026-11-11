@@ -24,6 +24,13 @@ function append(el, children) {
   }
 }
 
+/** replaceChildren 은 배열을 펼치지 않고 문자열로 바꾸므로, h() 와 같은 규칙으로 자식을 넣는다. */
+export function setChildren(el, ...children) {
+  el.replaceChildren();
+  append(el, children);
+  return el;
+}
+
 /** http(s) 주소만 통과. 그 밖(javascript: 등)은 null. */
 export function safeUrl(u) {
   try {
