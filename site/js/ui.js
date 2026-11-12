@@ -24,6 +24,12 @@ function append(el, children) {
   }
 }
 
+/** el 뒤에 자식을 덧붙인다(배열·null 허용). 네이티브 append 는 배열을 문자열로 바꾼다. */
+export function appendKids(el, ...children) {
+  append(el, children);
+  return el;
+}
+
 /** replaceChildren 은 배열을 펼치지 않고 문자열로 바꾸므로, h() 와 같은 규칙으로 자식을 넣는다. */
 export function setChildren(el, ...children) {
   el.replaceChildren();

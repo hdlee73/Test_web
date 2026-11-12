@@ -325,10 +325,9 @@ def test_risk_terms_and_disclosure_types_and_alerts(tmp_path):
     assert analyzed[0].dtype == "횡령·배임"
     export_all(tmp_path / "o", settings, [], analyzed, [], [], now, risk=risk)
     al = json.loads((tmp_path / "o" / "alerts.json").read_text(encoding="utf-8"))
-    cat = al["windows"]["5d"]["사기·유사수신"]
-    assert cat["by_kind"] == {"news": 1, "board": 1}
-    assert al["windows"]["5d"]["내부통제·횡령·배임"]["by_kind"] == {"disclosure": 1}
-    assert al["disclosure_types"]["5d"]["횡령·배임"]["posts"] == 1
+    # 게시판 모니터링: 게시판 글만 센다(뉴스 b, 공시 a 제외)
+    assert al["windows"]["5d"]["사기·유사수신"]["by_kind"] == {"board": 1}
+    assert "내부통제·횡령·배임" not in al["windows"]["5d"]
     tr = json.loads((tmp_path / "o" / "trends.json").read_text(encoding="utf-8"))
     assert set(tr["cats"]) == {"news", "disclosure", "board", "blog"}
 
@@ -384,6 +383,54 @@ def test_blog_ads_flagged_and_blog_excluded_from_default_ranking(tmp_path):
     assert "파킹통장" in kws and tr["windows"]["today"]["total_posts"] == 1       # 블로그·광고 제외, 뉴스만
     assert tr["cats"]["blog"]["today"]["total_posts"] == 1                         # 블로그 탭엔 광고 아닌 b3 만
     al = json.loads((tmp_path / "o" / "alerts.json").read_text(encoding="utf-8"))
-    assert al["windows"]["today"]["사기·유사수신"]["posts"] == 2                    # b2(남김) + b3
+    assert al["windows"]["today"] == {}                                             # 블로그·뉴스는 게시판 모니터링에서 제외
     day = json.loads(next((tmp_path / "o").glob("posts-*.json")).read_text(encoding="utf-8"))
     assert any(p.get("a") == 1 for f in (tmp_path / "o").glob("posts-*.json") for p in json.loads(f.read_text(encoding="utf-8"))["posts"])
+
+
+def test_funding_classify_summarize_and_collect(tmp_path):
+    from trendchecker.collector import funding as fd
+    from trendchecker.collector.run import collect_funding
+    assert fd.classify("증권신고서(지분증권)") == ("estkRs", "지분증권")
+    assert fd.classify("[기재정정]증권신고서(채무증권)") == ("bdRs", "채무증권")
+    assert fd.classify("증권신고서(집합투자증권-신탁형)") is None      # 펀드 제외
+    assert fd.classify("투자설명서") is None and fd.classify("분기보고서") is None
+    assert fd.to_won("100,000,000,000") == 100_000_000_000 and fd.to_won("-") is None
+    assert fd.fmt_dates("2026년 11월 20일 ~ 2026년 11월 21일") == "2026-11-20 ~ 2026-11-21" and fd.fmt_dates("-") == ""
+    now = datetime.now(timezone.utc)
+    today = now.astimezone(timezone(timedelta(hours=9))).strftime("%Y%m%d")
+    filings = [{"rcept_no": "20261112000010", "corp_code": "00111111", "corp_name": "가나다", "report_nm": "증권신고서(지분증권)", "rcept_dt": today, "stock_code": "000001"},
+               {"rcept_no": "20261112000011", "corp_code": "00222222", "corp_name": "라마바", "report_nm": "증권신고서(채무증권)", "rcept_dt": today},
+               {"rcept_no": "20261112000012", "corp_code": "00333333", "corp_name": "펀드운용", "report_nm": "증권신고서(집합투자증권-신탁형)", "rcept_dt": today},
+               {"rcept_no": "20261112000013", "corp_code": "00444444", "corp_name": "투자", "report_nm": "투자설명서", "rcept_dt": today}]
+    calls = []
+
+    def handler(req):
+        calls.append(req.url.path)
+        if req.url.path.endswith("/list.json"):
+            return httpx.Response(200, json={"status": "000", "total_page": 1, "list": filings})
+        if req.url.path.endswith("/estkRs.json"):
+            return httpx.Response(200, json={"status": "000", "group": [
+                {"title": "일반사항", "list": [{"rcept_no": "20261112000010", "sbd": "2026년 11월 20일 ~ 2026년 11월 21일", "pymd": "2026년 11월 28일"}]},
+                {"title": "증권의종류", "list": [{"rcept_no": "20261112000010", "stksen": "보통주", "slta": "50,000,000,000"},
+                                               {"rcept_no": "20261112000010", "stksen": "우선주", "slta": "25,000,000,000"}]}]})
+        if req.url.path.endswith("/bdRs.json"):
+            return httpx.Response(200, json={"status": "000", "group": [
+                {"title": "일반사항", "list": [{"rcept_no": "20261112000011", "bdnmn": "제5회 무보증사채", "slta": "30,000,000,000", "sbd": "2026-11-18", "pymd": "2026-11-19"},
+                                            {"rcept_no": "20261112000011", "bdnmn": "제6회 무보증사채", "slta": "20,000,000,000", "sbd": "2026-11-18", "pymd": "2026-11-19"}]}]})
+        return httpx.Response(404)
+
+    store = Store(tmp_path / "f.db")
+    src = SOURCES["dart_funding"]
+    r = collect_funding(store, src, (1,), env={"DART_API_KEY": "k"}, transport=httpx.MockTransport(handler), now=now, sleep=lambda s: None)
+    assert (r.status, r.fetched, r.new) == ("ok", 2, 2)
+    assert not any("mgRs" in c or "dvRs" in c for c in calls)
+    rows = {json.loads(x)["rcept_no"]: json.loads(x) for x in store.funding_since("20000101")}
+    a, b = rows["20261112000010"], rows["20261112000011"]
+    assert a["security"] == "보통주, 우선주" and a["amount_eok"] == 750.0 and a["sub_date"] == "2026-11-20 ~ 2026-11-21" and a["pay_date"] == "2026-11-28"
+    assert b["amount_eok"] == 500.0 and "제5회" in b["security"] and b["kind"] == "채무증권"
+    assert a["url"].endswith("rcpNo=20261112000010")
+    # 두 번째 실행: 이미 정리한 접수번호는 상세 API 를 다시 부르지 않는다
+    calls.clear()
+    r = collect_funding(store, src, (1,), env={"DART_API_KEY": "k"}, transport=httpx.MockTransport(handler), now=now, sleep=lambda s: None)
+    assert r.new == 0 and calls == ["/api/list.json"]

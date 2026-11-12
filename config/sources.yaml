@@ -193,7 +193,8 @@ sources:
     endpoint: blog
     pages: 1
     finance_board: true
-    enabled: true
+    enabled: false
+    off_reason: "블로그 메뉴를 쓰지 않기로 해서 수집 중단(필요하면 enabled: true 로 되돌림)"
     verified: allowed
 
   - id: naver_cafe
@@ -296,3 +297,14 @@ sources:
     finance_board: true
     enabled: true
     verified: unknown   # 이 환경에서 접속 확인 불가 → 첫 실행 결과(수집 현황)로 확인
+
+  # ── 증권신고서 제출 현황(자금조달): DART 오픈API, 펀드(집합투자증권) 제외. 별도 표(funding.json)로 저장하고 게시물 목록에는 넣지 않는다.
+  - id: dart_funding
+    site: DART
+    board: 증권신고서(자금조달)
+    type: dart_funding
+    category: disclosure
+    url: https://opendart.fss.or.kr/api/list.json
+    finance_board: false
+    enabled: true
+    verified: allowed

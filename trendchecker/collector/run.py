@@ -10,8 +10,9 @@ from ..storage.db import SourceState, Store
 from .adapters import parse
 from .http import FetchStatus, PoliteClient
 from . import dart as dart_mod
+from . import funding as funding_mod
 from .naver import NaverError, credentials, fetch_posts
-from .timeutil import from_iso, to_iso, utcnow
+from .timeutil import KST, from_iso, to_iso, utcnow
 
 log = logging.getLogger(__name__)
 
@@ -180,6 +181,57 @@ def collect_dart(store: Store, src: Source, backoff_hours: tuple[float, ...], *,
         store.save_state(st)
 
 
+def collect_funding(store: Store, src: Source, backoff_hours: tuple[float, ...], *, env=None, transport=None,
+                    now: datetime | None = None, sleep=None) -> CollectReport:
+    """증권신고서(자금조달) 현황 정리. 새 접수번호만 상세 API 를 부른다."""
+    import json as _json
+    import time as _time
+
+    now = now or utcnow()
+    st = store.get_state(src.id)
+    if _in_backoff(st, now):
+        return CollectReport(src.id, "backoff", detail=f"{st.blocked_until} 까지 대기")
+    st.last_attempt = to_iso(now)
+    try:
+        key = dart_mod.credentials(env)
+        if key is None:
+            st.status = "no_key"
+            st.last_detail = "DART_API_KEY 가 설정되지 않음"
+            return CollectReport(src.id, st.status, detail=st.last_detail)
+        try:
+            rows, total = funding_mod.collect(src, key, store.funding_known(), transport=transport, now=now,
+                                              sleep=sleep or _time.sleep)
+        except dart_mod.DartError as e:
+            if e.blocked:
+                st.consecutive_blocks += 1
+                idx = min(st.consecutive_blocks, len(backoff_hours)) - 1
+                st.blocked_until = to_iso(now + timedelta(hours=backoff_hours[idx]))
+                st.status = "blocked"
+            else:
+                st.status = "error"
+            st.last_detail = str(e)[:300]
+            log.error("[%s] %s", src.id, e)
+            return CollectReport(src.id, st.status, detail=st.last_detail)
+        for no, dt, rec in rows:
+            store.funding_save(no, dt, _json.dumps(rec, ensure_ascii=False), now)
+        store.funding_prune((now.astimezone(KST) - timedelta(days=10)).strftime("%Y%m%d"))
+        st.status = "ok" if total else "empty"
+        st.consecutive_blocks = 0
+        st.blocked_until = None
+        st.last_success = to_iso(now)
+        st.last_count = total
+        st.last_new = len(rows)
+        st.last_detail = "" if total else "최근 증권신고서가 없음"
+        return CollectReport(src.id, st.status, total, len(rows), st.last_detail or "")
+    except Exception as e:
+        st.status = "error"
+        st.last_detail = f"{e.__class__.__name__}: {e}"[:300]
+        log.exception("[%s] 처리 중 예외", src.id)
+        return CollectReport(src.id, "error", detail=st.last_detail)
+    finally:
+        store.save_state(st)
+
+
 def collect_all(settings: Settings, store: Store, client: PoliteClient | None = None,
                 only: set[str] | None = None) -> list[CollectReport]:
     own = client is None
@@ -193,6 +245,8 @@ def collect_all(settings: Settings, store: Store, client: PoliteClient | None = 
                 r = collect_naver(store, src, settings.defaults.backoff_hours)
             elif src.type == "dart_api":
                 r = collect_dart(store, src, settings.defaults.backoff_hours)
+            elif src.type == "dart_funding":
+                r = collect_funding(store, src, settings.defaults.backoff_hours)
             else:
                 r = collect_source(client, store, src, settings.defaults.backoff_hours)
             log.info("[%s] %s 수집 %d건, 신규 %d건 %s", src.id, r.status, r.fetched, r.new, r.detail)

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 from datetime import timedelta
@@ -23,7 +24,7 @@ from .analysis.risk import load_risk_matcher
 from .collector.adapters import parse
 from .collector.http import PoliteClient
 from .collector.run import collect_all
-from .collector.timeutil import utcnow
+from .collector.timeutil import KST, utcnow
 from .config import ROOT, load_dictionary, load_excluded_keywords, load_sources, load_stopwords, load_watchlist
 from .export.json_export import export_all
 from .logutil import setup_logging
@@ -57,6 +58,7 @@ def cmd_build(args) -> int:
     try:
         now = utcnow()
         posts = store.posts_since(now - timedelta(days=KEEP_DAYS))
+        funding = [json.loads(x) for x in store.funding_since((now.astimezone(KST) - timedelta(days=4)).strftime("%Y%m%d"))]
         states = store.all_states(settings.sources)
     finally:
         store.close()
@@ -74,7 +76,7 @@ def cmd_build(args) -> int:
     except Exception:
         log.exception("새 키워드 후보 추출 실패(집계는 계속 진행)")
         cands = []
-    files = export_all(Path(args.out), settings, states, analyzed, load_watchlist(), cands, now, risk=risk)
+    files = export_all(Path(args.out), settings, states, analyzed, load_watchlist(), cands, now, risk=risk, funding=funding)
     log.info("JSON %d개 생성 → %s", len(files), args.out)
     return 0
 
@@ -91,7 +93,7 @@ def cmd_check(args) -> int:
         for src in settings.sources:
             if only and src.id not in only:
                 continue
-            if src.type in ("naver_api", "dart_api"):
+            if src.type in ("naver_api", "dart_api", "dart_funding"):
                 print(f"{src.id:18} {src.type:18} (공식 API: 키를 환경변수로 넣고 `collect --only {src.id}` 실행)")
                 continue
             res = client.fetch(src.url)

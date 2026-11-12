@@ -11,7 +11,7 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = ROOT / "config"
 
-VALID_TYPES = {"rss", "link_regex", "naver_api", "dart_api"}
+VALID_TYPES = {"rss", "link_regex", "naver_api", "dart_api", "dart_funding"}
 VALID_CATEGORIES = {"news", "disclosure", "board", "blog"}
 
 

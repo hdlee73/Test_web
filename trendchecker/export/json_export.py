@@ -64,7 +64,7 @@ def _post_obj(a: AnalyzedPost) -> dict:
 
 def export_all(out_dir: Path, settings: Settings, states: list[SourceState], analyzed: list[AnalyzedPost],
                watchlist: list[WatchItem], candidates: list[dict], now: datetime, days: int = 5,
-               risk: RiskMatcher | None = None) -> list[Path]:
+               risk: RiskMatcher | None = None, funding: list[dict] | None = None) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     start = kst_midnight(now, days - 1)
@@ -137,9 +137,10 @@ def export_all(out_dir: Path, settings: Settings, states: list[SourceState], ana
     # alerts (위험 신호어·공시 유형)
     wins = {n: window_start(n, now) for n in WINDOWS}
     # 광고 의심 글은 위험 신호 집계에서 뺀다. 다만 사기·유사수신 신호어가 든 글은 그 자체가 감시 대상이라 남긴다.
-    keep = lambda a: not a.ad or any(h.category == "사기·유사수신" for h in a.risks)
+    # 게시판 모니터링: 커뮤니티 게시판 글만 본다(뉴스·공시·블로그 제외)
+    keep = lambda a: a.category == "board" and not a.ad
     rs = risk_summary([a for a in recent if keep(a)], now, wins)
-    ds = disclosure_summary(recent, wins)
+    ds = {}
     rsp = risk_spikes([a for a in analyzed if keep(a)], now)
     ref2 = {uid for w in rs.values() for c in w.values() for t in c["terms"] for uid in t["top"]}
     ref2 |= {uid for w in ds.values() for t in w.values() for uid in t["top"]}
@@ -153,6 +154,12 @@ def export_all(out_dir: Path, settings: Settings, states: list[SourceState], ana
     }
     p = out_dir / "alerts.json"
     _write(p, alerts)
+    written.append(p)
+
+    # funding (증권신고서 제출 현황)
+    rows = sorted(funding or [], key=lambda r: (r.get("rcept_dt", ""), r.get("rcept_no", "")), reverse=True)
+    p = out_dir / "funding.json"
+    _write(p, {"generated_at": now, "items": rows})
     written.append(p)
 
     # watchlist

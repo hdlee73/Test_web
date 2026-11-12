@@ -38,3 +38,6 @@ export async function loadPosts(meta, days) {
 
 /** 위험 신호·공시 유형 요약(없으면 null). */
 export const loadAlerts = () => getJson("alerts.json", { version }).catch(() => null);
+
+/** 증권신고서 제출 현황(없으면 null). */
+export const loadFunding = () => getJson("funding.json", { version }).catch(() => null);

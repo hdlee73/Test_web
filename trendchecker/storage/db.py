@@ -29,6 +29,13 @@ CREATE TABLE IF NOT EXISTS posts (
 );
 CREATE INDEX IF NOT EXISTS idx_posts_time ON posts(posted_at);
 
+CREATE TABLE IF NOT EXISTS funding (
+    rcept_no    TEXT PRIMARY KEY,          -- DART 접수번호
+    rcept_dt    TEXT NOT NULL,             -- 접수일 YYYYMMDD
+    data        TEXT NOT NULL,             -- 정리한 JSON(회사, 신고서 종류, 증권종류, 규모, 청약일, 납입일)
+    fetched_at  TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS source_state (
     source_id            TEXT PRIMARY KEY,
     status               TEXT NOT NULL DEFAULT 'pending',
@@ -131,6 +138,25 @@ class Store:
         """운영자 요청 등으로 특정 게시판 데이터를 지울 때."""
         with self.tx() as c:
             return c.execute("DELETE FROM posts WHERE source_id=?", (source_id,)).rowcount
+
+    # ── 증권신고서(자금조달) 정리 결과
+    def funding_known(self) -> set[str]:
+        return {r["rcept_no"] for r in self.conn.execute("SELECT rcept_no FROM funding")}
+
+    def funding_save(self, rcept_no: str, rcept_dt: str, data_json: str, now: datetime | None = None) -> None:
+        with self.tx() as c:
+            c.execute("INSERT INTO funding(rcept_no, rcept_dt, data, fetched_at) VALUES (?,?,?,?)"
+                      " ON CONFLICT(rcept_no) DO UPDATE SET data=excluded.data, fetched_at=excluded.fetched_at",
+                      (rcept_no, rcept_dt, data_json, to_iso(now or utcnow())))
+
+    def funding_since(self, rcept_dt_from: str) -> list[str]:
+        """접수일(YYYYMMDD)이 rcept_dt_from 이후인 정리 결과(JSON 문자열)."""
+        return [r["data"] for r in self.conn.execute(
+            "SELECT data FROM funding WHERE rcept_dt >= ? ORDER BY rcept_dt DESC, rcept_no DESC", (rcept_dt_from,))]
+
+    def funding_prune(self, keep_from: str) -> int:
+        with self.tx() as c:
+            return c.execute("DELETE FROM funding WHERE rcept_dt < ?", (keep_from,)).rowcount
 
     # ── 게시판 상태
     def get_state(self, source_id: str) -> SourceState:
