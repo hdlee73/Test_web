@@ -140,8 +140,17 @@ class Store:
             return c.execute("DELETE FROM posts WHERE source_id=?", (source_id,)).rowcount
 
     # ── 증권신고서(자금조달) 정리 결과
-    def funding_known(self) -> set[str]:
-        return {r["rcept_no"] for r in self.conn.execute("SELECT rcept_no FROM funding")}
+    def funding_known(self, complete_only: bool = False) -> set[str]:
+        """이미 정리한 접수번호. complete_only 이면 규모·일정을 알아낸 것만(비어 있는 것은 다음 실행에서 다시 시도)."""
+        import json as _json
+        out = set()
+        for r in self.conn.execute("SELECT rcept_no, data FROM funding"):
+            if complete_only:
+                d = _json.loads(r["data"])
+                if d.get("amount_eok") is None and not d.get("sub_date"):
+                    continue
+            out.add(r["rcept_no"])
+        return out
 
     def funding_save(self, rcept_no: str, rcept_dt: str, data_json: str, now: datetime | None = None) -> None:
         with self.tx() as c:

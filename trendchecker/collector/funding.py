@@ -34,6 +34,7 @@ KINDS = [
     ("포괄적교환", "extrRs", "주식의 포괄적 교환·이전"),
     ("분할", "dvRs", "분할"),
 ]
+ORIGIN_LOOKBACK_DAYS = 90
 _DATE = re.compile(r"(\d{4})\s*[년.\-/]\s*(\d{1,2})\s*[월.\-/]\s*(\d{1,2})")
 
 
@@ -116,6 +117,14 @@ def summarize(kind: str, data: dict) -> dict[str, dict]:
     return res
 
 
+def _nearest(summ: dict[str, dict], no: str) -> str | None:
+    """이 접수번호의 값이 응답에 없을 때, 같은 회사의 가장 가까운 앞선(없으면 가장 이른) 신고서 접수번호."""
+    earlier = [k for k in summ if k < no]
+    if earlier:
+        return max(earlier)
+    return min(summ) if summ else None
+
+
 def _get(client: httpx.Client, endpoint: str, params: dict, sleep=time.sleep) -> dict:
     try:
         r = get_with_retry(client, API.format(endpoint=endpoint), params, sleep=sleep)
@@ -174,11 +183,14 @@ def collect(source: Source, key: str, known: set[str], *, transport: httpx.BaseT
             todo.setdefault((str(it["corp_code"]), api, label), []).append(it)
         for (corp, api, label), its in todo.items():
             dts = sorted(str(i.get("rcept_dt") or "") for i in its)
-            data = _get(client, api, {"crtfc_key": key, "corp_code": corp, "bgn_de": dts[0], "end_de": dts[-1]}, sleep)
+            # 정정·발행조건확정 신고서는 처음 제출한 신고서보다 한참 뒤에 나오므로 넉넉히 거슬러 올라가 조회한다
+            bgn = (now.astimezone(KST).date() - timedelta(days=ORIGIN_LOOKBACK_DAYS)).strftime("%Y%m%d")
+            data = _get(client, api, {"crtfc_key": key, "corp_code": corp, "bgn_de": bgn, "end_de": dts[-1]}, sleep)
             summ = summarize(label, data)
             for it in its:
                 no = str(it["rcept_no"])
-                s = summ.get(no) or {"security": "", "amount_won": None, "sub_date": "", "pay_date": ""}
+                basis = no if no in summ else _nearest(summ, no)
+                s = summ.get(basis) or {"security": "", "amount_won": None, "sub_date": "", "pay_date": ""}
                 nm = str(it.get("report_nm") or "").strip()
                 rec = {
                     "rcept_no": no, "rcept_dt": str(it.get("rcept_dt") or ""), "corp_name": str(it.get("corp_name") or "").strip(),
@@ -186,6 +198,7 @@ def collect(source: Source, key: str, known: set[str], *, transport: httpx.BaseT
                     "corrected": "정정" in nm, "security": s["security"] or label,
                     "amount_eok": round(s["amount_won"] / 1e8, 1) if s["amount_won"] is not None else None,
                     "sub_date": s["sub_date"], "pay_date": s["pay_date"], "url": VIEW_URL.format(rcept_no=no),
+                    "from_original": bool(basis and basis != no),   # 이 신고서의 값이 아니라 앞선 신고서의 값을 쓴 경우
                 }
                 out.append((no, rec["rcept_dt"], rec))
             sleep(pause)

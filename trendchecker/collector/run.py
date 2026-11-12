@@ -199,7 +199,7 @@ def collect_funding(store: Store, src: Source, backoff_hours: tuple[float, ...],
             st.last_detail = "DART_API_KEY 가 설정되지 않음"
             return CollectReport(src.id, st.status, detail=st.last_detail)
         try:
-            rows, total = funding_mod.collect(src, key, store.funding_known(), transport=transport, now=now,
+            rows, total = funding_mod.collect(src, key, store.funding_known(complete_only=True), transport=transport, now=now,
                                               sleep=sleep or _time.sleep)
         except dart_mod.DartError as e:
             if e.blocked:

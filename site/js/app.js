@@ -417,7 +417,7 @@ async function viewFunding() {
         return h("tr", null,
           h("td", null, d8(x.rcept_dt)),
           h("td", null, h("b", null, x.corp_name), x.stock_code ? h("span", { class: "small muted" }, ` ${x.stock_code}`) : null),
-          h("td", null, h("span", { class: "chip" }, x.kind), x.corrected ? h("span", { class: "chip warm" }, "정정") : null),
+          h("td", null, h("span", { class: "chip" }, x.kind), x.corrected ? h("span", { class: "chip warm" }, "정정") : null, x.from_original ? h("span", { class: "chip", title: "이 정정·확정 신고서가 아니라 앞서 제출한 신고서의 규모·일정입니다. 원문에서 확인하세요." }, "앞선 신고서 기준") : null),
           h("td", null, x.security || "–"),
           h("td", { class: "n" }, eok(x.amount_eok)),
           h("td", null, x.sub_date || "–"),

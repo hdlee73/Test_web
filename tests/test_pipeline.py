@@ -455,3 +455,26 @@ def test_dart_retries_on_timeout_then_succeeds():
             raise AssertionError("should fail")
         except DartError as e:
             assert "ConnectTimeout" in str(e)
+
+
+def test_funding_corrected_filing_inherits_original_terms(tmp_path):
+    from trendchecker.collector.run import collect_funding
+    now = datetime.now(timezone.utc)
+    today = now.astimezone(timezone(timedelta(hours=9))).strftime("%Y%m%d")
+    filings = [{"rcept_no": "20261111000099", "corp_code": "00555555", "corp_name": "정정회사", "report_nm": "[기재정정]증권신고서(지분증권)", "rcept_dt": today}]
+    seen = {}
+
+    def handler(req):
+        if req.url.path.endswith("/list.json"):
+            return httpx.Response(200, json={"status": "000", "total_page": 1, "list": filings})
+        seen["bgn"] = req.url.params["bgn_de"]
+        return httpx.Response(200, json={"status": "000", "group": [
+            {"title": "일반사항", "list": [{"rcept_no": "20261101000001", "sbd": "2026-12-01", "pymd": "2026-12-03"}]},
+            {"title": "증권의종류", "list": [{"rcept_no": "20261101000001", "stksen": "보통주", "slta": "10,000,000,000"}]}]})
+
+    store = Store(tmp_path / "g.db")
+    r = collect_funding(store, SOURCES["dart_funding"], (1,), env={"DART_API_KEY": "k"}, transport=httpx.MockTransport(handler), now=now, sleep=lambda s: None)
+    row = json.loads(store.funding_since("20000101")[0])
+    assert row["amount_eok"] == 100.0 and row["security"] == "보통주" and row["from_original"] and row["corrected"]
+    assert seen["bgn"] < today   # 접수일 하루가 아니라 넓게 조회
+    assert store.funding_known(complete_only=True) == {"20261111000099"}
