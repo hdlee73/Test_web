@@ -16,6 +16,7 @@ from pathlib import Path
 from . import __version__
 from .analysis.aggregate import analyze_posts
 from .analysis.candidates import find_candidates
+from .analysis.ads import load_ad_matcher
 from .analysis.dedupe import drop_duplicate_disclosures
 from .analysis.dictionary import FinanceMatcher
 from .analysis.risk import load_risk_matcher
@@ -66,7 +67,7 @@ def cmd_build(args) -> int:
     if dup:
         log.info("DART 와 중복된 공시 %d건은 한 번만 집계", dup)
     risk = load_risk_matcher()
-    analyzed = analyze_posts(posts, matcher, src_map, load_excluded_keywords(), risk)
+    analyzed = analyze_posts(posts, matcher, src_map, load_excluded_keywords(), risk, load_ad_matcher())
     fin_titles = [a.post.title for a in analyzed if a.is_finance]
     try:
         cands = find_candidates(fin_titles, matcher.all_alias_texts | set(matcher.entries), load_stopwords())

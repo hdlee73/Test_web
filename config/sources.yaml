@@ -187,7 +187,8 @@ sources:
     site: 네이버
     board: 블로그
     type: naver_api
-    category: board
+    category: blog
+    queries_file: naver_blog_queries.txt
     url: https://openapi.naver.com/v1/search/blog.json
     endpoint: blog
     pages: 1

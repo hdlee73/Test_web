@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = ROOT / "config"
 
 VALID_TYPES = {"rss", "link_regex", "naver_api", "dart_api"}
-VALID_CATEGORIES = {"news", "disclosure", "board"}
+VALID_CATEGORIES = {"news", "disclosure", "board", "blog"}
 
 
 @dataclass(frozen=True)
@@ -29,7 +29,7 @@ class Source:
     verified: str = "unknown"
     endpoint: str | None = None      # naver_api: blog | cafearticle | news
     pages: int = 1                   # naver_api: 질의어당 읽을 페이지 수(1페이지 = 최대 100건)
-    category: str = "board"          # news | disclosure | board (화면의 카테고리)
+    category: str = "board"          # news | disclosure | board | blog (화면의 카테고리)
     off_reason: str = ""             # enabled=false 인 이유(게시판 상태 화면에 표시)
     queries_file: str | None = None  # naver_api: config/ 아래 질의어 파일(기본 naver_queries.txt)
     dup_of: str | None = None        # 같은 글이 이 source 에도 있으면 이쪽을 버린다(공시 이중 집계 방지)

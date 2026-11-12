@@ -13,6 +13,7 @@ const MENU = [
   ["news", "뉴스"],
   ["disclosure", "공시"],
   ["board", "게시판"],
+  ["blog", "블로그"],
   ["trend", "키워드 순위"],
   ["heat", "게시판별 히트맵"],
   ["spikes", "급상승"],
@@ -22,7 +23,7 @@ const MENU = [
 ];
 // 메뉴에는 없지만 다른 화면의 링크가 쓰는 주소(#/posts?k=금리 처럼): 전체 카테고리 검색
 const HIDDEN_ROUTES = ["posts"];
-const CATS = [["news", "뉴스"], ["disclosure", "공시"], ["board", "게시판"]];
+const CATS = [["news", "뉴스"], ["disclosure", "공시"], ["board", "게시판"], ["blog", "블로그"]];
 const catName = (c) => (CATS.find((x) => x[0] === c) || [c, c])[1];
 const WINDOWS = [["today", "오늘"], ["3d", "최근 3일"], ["5d", "최근 5일"]];
 const WINDOW_DAYS = { today: 1, "3d": 3, "5d": 5 };
@@ -80,6 +81,7 @@ function postRow(p, query) {
   return h("div", { class: "post" },
     h("span", { class: "chip" }, sourceShort(p.s)),
     p.d ? h("span", { class: "chip warm" }, p.d) : null,
+    p.a ? h("span", { class: "chip", title: "제목 패턴으로 본 광고·홍보 의심(순위·위험 집계에서 제외)" }, "광고 의심") : null,
     url ? h("a", { href: url, target: "_blank", rel: "noopener noreferrer" }, title) : h("span", null, title),
     p.r?.length ? h("span", { class: "chip bad", title: "위험 신호어" }, "⚠ " + p.r.slice(0, 2).join(" · ")) : null,
     h("time", { datetime: p.at, title: p.x ? "게시 시각" : "수집 시각(사이트가 시각을 주지 않음)" }, (p.x ? "" : "≈") + fmtDateTime(p.at)));
@@ -151,14 +153,14 @@ async function viewHome() {
   const top = win.keywords.slice(0, 8);
   const max = top[0]?.posts || 1;
   const watchBox = h("div", { class: "card" }, h("h2", null, "내 관심 키워드 새 글(오늘)"), h("p", { class: "small muted" }, "불러오는 중…"));
-  const byCat = { news: 0, disclosure: 0, board: 0 };
+  const byCat = { news: 0, disclosure: 0, board: 0, blog: 0 };
   for (const [id, n] of Object.entries(win.by_source)) byCat[ctx.meta.sources.find((x) => x.id === id)?.category || "board"] += n;
   const riskCats = Object.entries(ctx.alerts?.windows?.today || {});
   const riskToday = riskCats.reduce((a, [, c]) => a + c.posts, 0);
   const dtypeToday = Object.values(ctx.alerts?.disclosure_types?.today || {}).reduce((a, v) => a + v.posts, 0);
   const box = h("div", { class: "wrap" },
     h("div", { class: "kpis" },
-      kpi(win.total_posts.toLocaleString("ko-KR"), `오늘 수집 글 (뉴스 ${byCat.news} · 공시 ${byCat.disclosure} · 게시판 ${byCat.board})`),
+      kpi(win.total_posts.toLocaleString("ko-KR"), `오늘 수집 글 (뉴스 ${byCat.news} · 공시 ${byCat.disclosure} · 게시판 ${byCat.board}; 블로그 제외)`),
       kpi(String(riskToday), "오늘 위험 신호 분류별 건수"),
       kpi(String(dtypeToday), "오늘 중요 공시"),
       kpi(String(ctx.trends.spikes.length + (ctx.alerts?.spikes?.length || 0)), "급증한 키워드·신호어")),
@@ -250,8 +252,9 @@ async function viewPosts(params, rid = "posts", fixedCat = "") {
   const board = params.b || "";
   const risk = params.r || "";
   const dtype = params.t || "";
+  const showAd = params.ad === "1";
   const cat = fixedCat || (CATS.some((x) => x[0] === params.cat) ? params.cat : "");
-  const nav = (o) => go(rid, { w, k, q, b: board, r: risk, t: dtype, ...(fixedCat ? {} : { cat }), ...o });
+  const nav = (o) => go(rid, { w, k, q, b: board, r: risk, t: dtype, ad: showAd ? "1" : "", ...(fixedCat ? {} : { cat }), ...o });
   const box = h("div", { class: "wrap" });
   const form = h("form", { class: "field", onsubmit: (e) => { e.preventDefault(); nav({ k: "", r: "", q: $("q").value.trim() }); } },
     h("input", { id: "q", type: "search", placeholder: "제목에서 검색 (예: 금감원)", value: q, "aria-label": "제목 검색" }),
@@ -280,13 +283,16 @@ async function viewPosts(params, rid = "posts", fixedCat = "") {
     if (types.length) setChildren(dtypeBox, h("select", { "aria-label": "공시 유형", class: "ib", style: { width: "auto", padding: "0 8px" }, onchange: (e) => nav({ t: e.target.value }) },
       h("option", { value: "" }, "모든 공시 유형"), ...types.map((t) => h("option", { value: t, selected: t === dtype }, t))));
   }
-  const rows = inCat.filter((p) => (k ? p.k.includes(k) : risk ? p.r?.includes(risk) : dtype ? p.d === dtype : kw ? p.t.toLowerCase().includes(kw) : (cat === "board" ? p.f === 1 : true)));
+  const adCount = inCat.filter((p) => p.a).length;
+  const rows = inCat.filter((p) => (showAd || !p.a) && (k ? p.k.includes(k) : risk ? p.r?.includes(risk) : dtype ? p.d === dtype : kw ? p.t.toLowerCase().includes(kw) : (cat === "board" ? p.f === 1 : true)));
   rows.sort((a, b) => (a.at < b.at ? 1 : -1));
   const total = rows.length;
   let shown = 100;
   const draw = () => {
     setChildren(holder,
-      h("div", { class: "small muted", style: { marginBottom: "6px" } }, `${total.toLocaleString("ko-KR")}건` + (cat === "board" && !k && !risk && !dtype && !kw ? " (금융 관련 글만)" : "")),
+      h("div", { class: "row", style: { marginBottom: "6px" } },
+        h("span", { class: "small muted" }, `${total.toLocaleString("ko-KR")}건` + (cat === "board" && !k && !risk && !dtype && !kw ? " (금융 관련 글만)" : "")),
+        adCount ? h("button", { class: "btn ghost sm", type: "button", onclick: () => nav({ ad: showAd ? "" : "1" }) }, showAd ? "광고 의심 글 숨기기" : `광고 의심 ${adCount}건 포함해서 보기`) : null),
       total === 0 ? stateBox("조건에 맞는 글이 없습니다.") : rows.slice(0, shown).map((p) => postRow(p, kw || "")),
       total > shown ? h("button", { class: "btn ghost sm", type: "button", onclick: () => { shown += 100; draw(); } }, "더 보기") : null);
   };
@@ -331,6 +337,7 @@ function viewRisk(params) {
 const MAX_WATCH = 5;
 const loadWatch = () => store.get("watch", []);
 function matchesWatch(item, p) {
+  if (p.c === "news" || p.a) return false; // 관심 키워드에서는 네이버 뉴스와 광고 의심 글을 뺀다
   const t = compact(p.t);
   const terms = [item.k, ...(item.s || [])].map(compact).filter(Boolean);
   if (!terms.some((x) => t.includes(x))) return false;
@@ -390,7 +397,7 @@ function viewBoards() {
   };
   const head = h("thead", null, h("tr", null, h("th", null, "소스"), h("th", null, "상태"), h("th", { class: "n" }, "최근 수집"), h("th", null, "마지막 성공"), h("th", null, "비고(제외 사유 포함)")));
   return h("div", { class: "wrap" },
-    h("p", { class: "muted" }, "공시는 DART 오픈API, 뉴스·블로그는 네이버 검색 API(공식)로 받고, 게시판은 robots.txt를 지킵니다. 차단 신호가 오면 우회하지 않고 쉬며, 정상이 아닌 소스는 집계에서 빠집니다."),
+    h("p", { class: "muted" }, "공시는 DART 오픈API와 거래소 KIND, 뉴스·블로그는 네이버 검색 API(공식)로 받고, 게시판은 robots.txt를 지킵니다. 차단 신호가 오면 우회하지 않고 쉬며, 정상이 아닌 소스는 집계에서 빠집니다."),
     CATS.map(([cat, name]) => {
       const list = ctx.meta.sources.filter((s) => (s.category || "board") === cat);
       return h("div", { class: "card tablewrap" }, h("h2", null, name), h("table", null, head, h("tbody", null, list.map(row))));
@@ -427,9 +434,9 @@ function viewInfo() {
       h("ol", { style: { margin: 0, paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "4px" } },
         h("li", null, "‘대시보드’는 오늘의 수집 현황, 위험 신호 분류별 건수, 키워드 순위, 내 관심 키워드의 새 글을 한 화면에 보여줍니다."),
         h("li", null, "‘위험 신호’는 유사수신·리딩방·불완전판매·환매 중단·횡령·정보 유출 같은 신호어가 제목에 들어간 뉴스·공시·게시판 글을 분류별로 모아 보여주고, 최근 24시간에 평소보다 크게 늘어난 신호어와 중요 공시 유형(횡령·배임, 불성실공시, 감사의견 등)을 알려 줍니다."),
-        h("li", null, "‘뉴스’·‘공시’·‘게시판’에서 기간과 출처를 고르고 제목을 검색합니다. 제목을 누르면 원문(뉴스 기사, DART 공시, 게시판 글)으로 이동합니다."),
+        h("li", null, "‘뉴스’·‘공시’·‘게시판’·‘블로그’에서 기간과 출처를 고르고 제목을 검색합니다. 제목을 누르면 원문(뉴스 기사, 공시, 게시판 글)으로 이동합니다. 블로그는 홍보글이 많아 순위·급상승에서 빼고, 제목 패턴으로 광고 의심 글은 기본으로 숨깁니다."),
         h("li", null, "‘키워드 순위’는 오늘·최근 3일·최근 5일에 많이 언급된 금융·금융회사 키워드이며, 출처(뉴스·공시·게시판)별로 따로 볼 수 있습니다."),
-        h("li", null, "‘관심 키워드’에 단어(동의어·제외어 포함)를 최대 5개 등록하면 최근 5일 글 중 맞는 글을 모아 보여줍니다. 이 브라우저에만 저장됩니다."),
+        h("li", null, "‘관심 키워드’에 단어(동의어·제외어 포함)를 최대 5개 등록하면 최근 5일 글 중 맞는 글을 모아 보여줍니다(뉴스와 광고 의심 글은 제외). 이 브라우저에만 저장됩니다."),
         h("li", null, "‘급상승’은 최근 24시간 언급이 평소보다 크게 늘어난 키워드입니다. 데이터가 며칠 쌓이기 전에는 비어 있을 수 있습니다."),
         h("li", null, "‘수집 현황’에서 소스별 상태와, 수집하지 않는 곳의 제외 사유를 확인합니다."))),    h("div", { class: "card" }, h("h2", null, "수집 원칙과 안내"),
       h("p", null, ctx.meta?.notice || ""),
@@ -462,7 +469,7 @@ async function render() {
     content.replaceChildren(stateBox("아직 수집된 데이터가 없습니다. 첫 수집이 끝나면 표시됩니다(보통 30분 이내).", h("div", { style: { marginTop: "10px" } }, h("button", { class: "btn ghost sm", type: "button", onclick: refresh }, "다시 불러오기"))));
     return;
   }
-  const view = { home: viewHome, risk: viewRisk, news: (p) => viewPosts(p, "news", "news"), disclosure: (p) => viewPosts(p, "disclosure", "disclosure"), board: (p) => viewPosts(p, "board", "board"), posts: (p) => viewPosts(p, "posts", ""), heat: viewHeat, trend: viewTrend, spikes: viewSpikes, watch: viewWatch, boards: viewBoards, info: viewInfo }[id];
+  const view = { home: viewHome, risk: viewRisk, news: (p) => viewPosts(p, "news", "news"), disclosure: (p) => viewPosts(p, "disclosure", "disclosure"), board: (p) => viewPosts(p, "board", "board"), blog: (p) => viewPosts(p, "blog", "blog"), posts: (p) => viewPosts(p, "posts", ""), heat: viewHeat, trend: viewTrend, spikes: viewSpikes, watch: viewWatch, boards: viewBoards, info: viewInfo }[id];
   try {
     const node = await view(params);
     if (seq !== renderSeq) return;

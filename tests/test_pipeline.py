@@ -330,7 +330,7 @@ def test_risk_terms_and_disclosure_types_and_alerts(tmp_path):
     assert al["windows"]["5d"]["내부통제·횡령·배임"]["by_kind"] == {"disclosure": 1}
     assert al["disclosure_types"]["5d"]["횡령·배임"]["posts"] == 1
     tr = json.loads((tmp_path / "o" / "trends.json").read_text(encoding="utf-8"))
-    assert set(tr["cats"]) == {"news", "disclosure", "board"}
+    assert set(tr["cats"]) == {"news", "disclosure", "board", "blog"}
 
 
 def test_kind_dart_duplicate_disclosures_counted_once():
@@ -352,3 +352,38 @@ def test_kind_dart_duplicate_disclosures_counted_once():
     # DART 가 없으면(키 없음 등) KIND 글이 그대로 남는다
     kept, dropped = drop_duplicate_disclosures([p for p in posts if p.source_id != "dart_disclosure"], sources)
     assert dropped == 0 and len(kept) == 3
+
+
+def test_blog_ads_flagged_and_blog_excluded_from_default_ranking(tmp_path):
+    from trendchecker.analysis.ads import load_ad_matcher
+    from trendchecker.analysis.risk import load_risk_matcher
+    from trendchecker.storage.db import StoredPost
+    ads = load_ad_matcher()
+    assert ads.is_ad("무직자 당일대출 가능한 곳 무료상담")
+    assert ads.is_ad("대출 문의 010-1234-5678")
+    assert ads.is_ad("최저금리 비교 추천 총정리")          # 약한 말 3개
+    assert not ads.is_ad("저축은행 예금 인출 사태 정리")    # 약한 말 0~1개
+    assert not ads.is_ad("카카오뱅크 파킹통장 금리 인하")
+    now = datetime.now(timezone.utc)
+    mk = lambda uid, src, t: StoredPost(uid, src, t, "https://x/" + uid, now - timedelta(hours=1), True)
+    posts = [mk("b1", "naver_blog", "무직자 당일대출 상담 파킹통장"),
+             mk("b2", "naver_blog", "유사수신 업체 피해 사례 무료상담"),       # 광고처럼 보이지만 사기·유사수신 → 위험 집계에 남김
+             mk("b3", "naver_blog", "먹튀 거래소 출금 정지 후기"),
+             mk("b4", "naver_blog", "반복 제목 글"), mk("b5", "naver_blog", "반복 제목 글"), mk("b6", "naver_blog", "반복 제목 글"),
+             mk("n1", "naver_news", "카카오뱅크 파킹통장 금리 인하")]
+    settings = Settings(Defaults(6, 5, (1,)), [SOURCES["naver_blog"], SOURCES["naver_news"]])
+    risk = load_risk_matcher()
+    an = analyze_posts(posts, FinanceMatcher(load_dictionary()), {s.id: s for s in settings.sources}, risk=risk, ads=ads)
+    by = {a.post.uid: a for a in an}
+    assert by["b1"].ad and by["b2"].ad and not by["b3"].ad
+    assert all(by[u].ad for u in ("b4", "b5", "b6"))
+    assert not by["n1"].ad and by["b1"].category == "blog"
+    export_all(tmp_path / "o", settings, [], an, [], [], now, risk=risk)
+    tr = json.loads((tmp_path / "o" / "trends.json").read_text(encoding="utf-8"))
+    kws = {k["keyword"] for k in tr["windows"]["today"]["keywords"]}
+    assert "파킹통장" in kws and tr["windows"]["today"]["total_posts"] == 1       # 블로그·광고 제외, 뉴스만
+    assert tr["cats"]["blog"]["today"]["total_posts"] == 1                         # 블로그 탭엔 광고 아닌 b3 만
+    al = json.loads((tmp_path / "o" / "alerts.json").read_text(encoding="utf-8"))
+    assert al["windows"]["today"]["사기·유사수신"]["posts"] == 2                    # b2(남김) + b3
+    day = json.loads(next((tmp_path / "o").glob("posts-*.json")).read_text(encoding="utf-8"))
+    assert any(p.get("a") == 1 for f in (tmp_path / "o").glob("posts-*.json") for p in json.loads(f.read_text(encoding="utf-8"))["posts"])

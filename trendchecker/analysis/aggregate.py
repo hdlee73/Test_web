@@ -22,10 +22,11 @@ class AnalyzedPost:
     category: str = "board"                # news | disclosure | board
     risks: list = field(default_factory=list)  # RiskHit 목록
     dtype: str | None = None               # 공시 유형(공시일 때만)
+    ad: bool = False                       # 광고·홍보성 글 의심(블로그)
 
 
 def analyze_posts(posts: list[StoredPost], matcher: FinanceMatcher, sources: dict[str, Source],
-                  exclude: frozenset[str] | set[str] = frozenset(), risk=None) -> list[AnalyzedPost]:
+                  exclude: frozenset[str] | set[str] = frozenset(), risk=None, ads=None) -> list[AnalyzedPost]:
     """exclude: 너무 광범위해 집계에서 뺄 대표어. 글은 여전히 '금융 관련'으로 센다."""
     out = []
     for p in posts:
@@ -36,7 +37,17 @@ def analyze_posts(posts: list[StoredPost], matcher: FinanceMatcher, sources: dic
         out.append(AnalyzedPost(
             p, kws, bool(found) or bool(src and src.finance_board), cat,
             risk.hits(p.title) if risk else [],
-            risk.disclosure_type(p.title) if risk and cat == "disclosure" else None))
+            risk.disclosure_type(p.title) if risk and cat == "disclosure" else None,
+            bool(ads and cat in ads.apply_to and ads.is_ad(p.title))))
+    if ads:  # 같은 제목의 도배
+        for cat in ads.apply_to:
+            group = [a for a in out if a.category == cat]
+            rep = ads.repeated_titles([a.post.title for a in group])
+            if rep:
+                from .dedupe import dedupe_key
+                for a in group:
+                    if dedupe_key(a.post.title) in rep:
+                        a.ad = True
     return out
 
 

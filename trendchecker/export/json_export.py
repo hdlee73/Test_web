@@ -57,6 +57,8 @@ def _post_obj(a: AnalyzedPost) -> dict:
         o["r"] = [h.term for h in a.risks]
     if a.dtype:
         o["d"] = a.dtype
+    if a.ad:
+        o["a"] = 1
     return o
 
 
@@ -109,8 +111,10 @@ def export_all(out_dir: Path, settings: Settings, states: list[SourceState], ana
             old.unlink()
 
     # trends
-    agg = aggregate(recent, now)
-    cats_agg = {c: aggregate([a for a in recent if a.category == c], now) for c in ("news", "disclosure", "board")}
+    # 블로그는 홍보글이 많아 기본 순위·급상승에서 뺀다(블로그 탭에서 따로 본다). 광고 의심 글도 집계에서 뺀다.
+    counted = [a for a in recent if a.category != "blog" and not a.ad]
+    agg = aggregate(counted, now)
+    cats_agg = {c: aggregate([a for a in recent if a.category == c and not a.ad], now) for c in ("news", "disclosure", "board", "blog")}
     referenced = {uid for w in agg.values() for k in w["keywords"] for uid in k["top"]}
     for ca in cats_agg.values():
         referenced |= {uid for w in ca.values() for k in w["keywords"] for uid in k["top"]}
@@ -121,9 +125,9 @@ def export_all(out_dir: Path, settings: Settings, states: list[SourceState], ana
         "cats": cats_agg,
         "daily": {
             "days": [(now.astimezone(KST) - timedelta(days=d)).strftime("%Y-%m-%d") for d in range(days - 1, -1, -1)],
-            "series": daily_series(recent, now, days),
+            "series": daily_series(counted, now, days),
         },
-        "spikes": spikes(analyzed, now),
+        "spikes": spikes([a for a in analyzed if a.category != "blog" and not a.ad], now),
         "posts": post_lookup,
     }
     p = out_dir / "trends.json"
@@ -132,9 +136,11 @@ def export_all(out_dir: Path, settings: Settings, states: list[SourceState], ana
 
     # alerts (위험 신호어·공시 유형)
     wins = {n: window_start(n, now) for n in WINDOWS}
-    rs = risk_summary(recent, now, wins)
+    # 광고 의심 글은 위험 신호 집계에서 뺀다. 다만 사기·유사수신 신호어가 든 글은 그 자체가 감시 대상이라 남긴다.
+    keep = lambda a: not a.ad or any(h.category == "사기·유사수신" for h in a.risks)
+    rs = risk_summary([a for a in recent if keep(a)], now, wins)
     ds = disclosure_summary(recent, wins)
-    rsp = risk_spikes(analyzed, now)
+    rsp = risk_spikes([a for a in analyzed if keep(a)], now)
     ref2 = {uid for w in rs.values() for c in w.values() for t in c["terms"] for uid in t["top"]}
     ref2 |= {uid for w in ds.values() for t in w.values() for uid in t["top"]}
     alerts = {
