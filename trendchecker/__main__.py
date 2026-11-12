@@ -16,6 +16,7 @@ from pathlib import Path
 from . import __version__
 from .analysis.aggregate import analyze_posts
 from .analysis.candidates import find_candidates
+from .analysis.dedupe import drop_duplicate_disclosures
 from .analysis.dictionary import FinanceMatcher
 from .analysis.risk import load_risk_matcher
 from .collector.adapters import parse
@@ -61,6 +62,9 @@ def cmd_build(args) -> int:
     src_map = {s.id: s for s in settings.sources}
     # 꺼 둔 소스(예: 제외한 카페글)의 이전 수집분은 화면에 내지 않는다
     posts = [p for p in posts if p.source_id in src_map and src_map[p.source_id].enabled]
+    posts, dup = drop_duplicate_disclosures(posts, src_map)
+    if dup:
+        log.info("DART 와 중복된 공시 %d건은 한 번만 집계", dup)
     risk = load_risk_matcher()
     analyzed = analyze_posts(posts, matcher, src_map, load_excluded_keywords(), risk)
     fin_titles = [a.post.title for a in analyzed if a.is_finance]

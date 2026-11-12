@@ -32,6 +32,7 @@ class Source:
     category: str = "board"          # news | disclosure | board (화면의 카테고리)
     off_reason: str = ""             # enabled=false 인 이유(게시판 상태 화면에 표시)
     queries_file: str | None = None  # naver_api: config/ 아래 질의어 파일(기본 naver_queries.txt)
+    dup_of: str | None = None        # 같은 글이 이 source 에도 있으면 이쪽을 버린다(공시 이중 집계 방지)
 
     @property
     def label(self) -> str:
@@ -102,8 +103,13 @@ def load_sources(path: Path | None = None) -> Settings:
                 category=cat,
                 off_reason=str(raw.get("off_reason", "")),
                 queries_file=raw.get("queries_file"),
+                dup_of=raw.get("dup_of"),
             )
         )
+    ids = {x.id for x in sources}
+    for x in sources:
+        if x.dup_of and x.dup_of not in ids:
+            raise ValueError(f"{x.id}: dup_of 가 없는 source: {x.dup_of}")
     return Settings(defaults=defaults, sources=sources)
 
 

@@ -281,3 +281,17 @@ sources:
     finance_board: true
     enabled: true
     verified: allowed
+
+  # ── 공시: 한국거래소 KIND '오늘의 공시' RSS (거래소 고유 공시: 시장조치·투자경고·공매도 과열 등 포함)
+  # DART 와 같은 공시는 dup_of 로 한쪽만 센다(DART 를 우선). 실행 시 robots.txt 를 확인하고 허용되지 않으면 건너뛴다.
+  - id: kind_disclosure
+    site: 한국거래소
+    board: KIND 공시
+    type: rss
+    category: disclosure
+    url: https://kind.krx.co.kr/disclosure/rsstodaydistribute.do?method=searchRssTodayDistribute&repIsuSrtCd=&mktTpCd=0&searchCorpName=&currentPageSize=100
+    post_pattern: '(?i)acptno=(\d+)|(\d{14})'
+    dup_of: dart_disclosure
+    finance_board: true
+    enabled: true
+    verified: unknown   # 이 환경에서 접속 확인 불가 → 첫 실행 결과(수집 현황)로 확인

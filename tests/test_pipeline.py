@@ -331,3 +331,22 @@ def test_risk_terms_and_disclosure_types_and_alerts(tmp_path):
     assert al["disclosure_types"]["5d"]["횡령·배임"]["posts"] == 1
     tr = json.loads((tmp_path / "o" / "trends.json").read_text(encoding="utf-8"))
     assert set(tr["cats"]) == {"news", "disclosure", "board"}
+
+
+def test_kind_dart_duplicate_disclosures_counted_once():
+    from trendchecker.analysis.dedupe import dedupe_key, drop_duplicate_disclosures
+    from trendchecker.storage.db import StoredPost
+    assert dedupe_key("[코]가나다전자 [정정]횡령ㆍ배임혐의발생") == dedupe_key("가나다전자 횡령·배임혐의발생")
+    sources = {s.id: s for s in load_sources().sources}
+    assert sources["kind_disclosure"].dup_of == "dart_disclosure" and sources["kind_disclosure"].category == "disclosure"
+    now = datetime.now(timezone.utc)
+    mk = lambda uid, src, t, h=1: StoredPost(uid, src, t, "https://x/" + uid, now - timedelta(hours=h), True)
+    posts = [mk("d1", "dart_disclosure", "가나다전자 횡령ㆍ배임혐의발생"),
+             mk("k1", "kind_disclosure", "[코]가나다전자 횡령ㆍ배임혐의발생"),          # 중복 → 제외
+             mk("k2", "kind_disclosure", "[유]라마바 공매도 과열종목 지정"),            # KIND 에만 있음 → 유지
+             mk("k3", "kind_disclosure", "[코]가나다전자 횡령ㆍ배임혐의발생", h=24 * 5)]  # 날짜가 멀면 별개 공시
+    kept, dropped = drop_duplicate_disclosures(posts, sources)
+    assert dropped == 1 and {p.uid for p in kept} == {"d1", "k2", "k3"}
+    # DART 가 없으면(키 없음 등) KIND 글이 그대로 남는다
+    kept, dropped = drop_duplicate_disclosures([p for p in posts if p.source_id != "dart_disclosure"], sources)
+    assert dropped == 0 and len(kept) == 3
