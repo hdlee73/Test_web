@@ -116,7 +116,10 @@ def test_collect_ok_and_export(tmp_path):
               <a href="/service/board/park/102"><span>코스피 폭락 ETF 손절각</span></a>"""
     rss = """<?xml version="1.0" encoding="utf-8"?><rss><channel>
       <item><title>파킹 통장 어디가 좋나요</title><link>http://www.ppomppu.co.kr/zboard/view.php?id=stock&amp;no=9</link>
-      <pubDate>Wed, 11 Nov 2026 01:00:00 GMT</pubDate></item></channel></rss>"""
+      <pubDate>{PUB}</pubDate></item></channel></rss>"""
+
+    from email.utils import format_datetime
+    rss = rss.replace("{PUB}", format_datetime(datetime.now(timezone.utc) - timedelta(seconds=30)))  # 날짜가 바뀌어도 '오늘' 글이 되게
 
     def handler(req):
         if req.url.path == "/robots.txt":
@@ -156,7 +159,7 @@ def test_collect_ok_and_export(tmp_path):
     # 본문/작성자 필드가 없어야 함
     day = json.loads((tmp_path / "out" / meta["post_files"][0]).read_text(encoding="utf-8"))
     for p in day["posts"]:
-        assert set(p) == {"id", "s", "t", "u", "at", "x", "k", "f"}
+        assert set(p) <= {"id", "s", "t", "u", "at", "x", "k", "f", "c", "r", "d"} and not ({"author", "body"} & set(p))
     store.close()
 
 
@@ -270,3 +273,61 @@ def test_excluded_broad_keywords_are_not_counted():
     assert [e.name for e in out[1].keywords] == ["카카오뱅크"]
     assert not out[2].is_finance
     assert [e.name for e in analyze_posts(posts, m, SOURCES)[0].keywords] == ["주식", "대출", "금리"]
+
+
+def _dart_transport(pages, status="000"):
+    def handler(req):
+        page = int(req.url.params["page_no"])
+        if status != "000":
+            return httpx.Response(200, json={"status": status, "message": "x"})
+        return httpx.Response(200, json={"status": "000", "page_no": page, "total_page": len(pages), "list": pages[page - 1]})
+    return httpx.MockTransport(handler)
+
+
+def test_dart_collect_paging_and_errors(tmp_path):
+    from trendchecker.collector.run import collect_dart
+    src = SOURCES["dart_disclosure"]
+    now = datetime.now(timezone.utc)
+    pages = [[{"rcept_no": "20261112000001", "corp_name": "가나다", "report_nm": "횡령ㆍ배임혐의발생", "rcept_dt": now.astimezone(timezone(timedelta(hours=9))).strftime("%Y%m%d")}],
+             [{"rcept_no": "20261112000002", "corp_name": "라마바", "report_nm": "유상증자결정", "rcept_dt": "20200101"}]]
+    store = Store(tmp_path / "d.db")
+    r = collect_dart(store, src, (1,), env={}, now=now)
+    assert r.status == "no_key"
+    r = collect_dart(store, src, (1,), env={"DART_API_KEY": "k"}, transport=_dart_transport(pages), now=now, sleep=lambda s: None)
+    assert (r.status, r.fetched, r.new) == ("ok", 2, 2)
+    posts = {p.uid: p for p in store.posts_since(now - timedelta(days=3650))}
+    p1 = posts["dart_disclosure:20261112000001"]
+    assert p1.title == "가나다 횡령ㆍ배임혐의발생" and p1.url.startswith("https://dart.fss.or.kr/dsaf001/main.do?rcpNo=")
+    store2 = Store(tmp_path / "e.db")
+    r = collect_dart(store2, src, (1, 3), env={"DART_API_KEY": "k"}, transport=_dart_transport([], "020"), now=now)
+    assert r.status == "blocked" and "한도" in r.detail
+    r = collect_dart(Store(tmp_path / "f.db"), src, (1,), env={"DART_API_KEY": "k"}, transport=_dart_transport([], "010"), now=now)
+    assert r.status == "error"
+    r = collect_dart(Store(tmp_path / "g.db"), src, (1,), env={"DART_API_KEY": "k"}, transport=_dart_transport([], "013"), now=now)
+    assert r.status == "empty"
+
+
+def test_risk_terms_and_disclosure_types_and_alerts(tmp_path):
+    from trendchecker.analysis.risk import load_risk_matcher
+    from trendchecker.storage.db import StoredPost
+    risk = load_risk_matcher()
+    assert any(h.category == "사기·유사수신" for h in risk.hits("유사 수신 업체 리딩 방 주의"))
+    assert risk.hits("오늘 점심 뭐 먹지") == []
+    assert risk.disclosure_type("가나다 횡령ㆍ배임혐의발생") == "횡령·배임"
+    assert risk.disclosure_type("정기 주주총회 소집공고") is None
+    now = datetime.now(timezone.utc)
+    mk = lambda uid, src, title, h=1: StoredPost(uid, src, title, "https://x/" + uid, now - timedelta(hours=h), True)
+    posts = [mk("a", "dart_disclosure", "가나다 횡령ㆍ배임혐의발생"), mk("b", "naver_news", "금감원 리딩방 일제 점검"),
+             mk("c", "clien_park", "이거 리딩방 사기 아니냐"), mk("d", "clien_park", "점심 뭐 먹지")]
+    settings = Settings(Defaults(6, 5, (1,)), [SOURCES[i] for i in ("dart_disclosure", "naver_news", "clien_park")])
+    analyzed = analyze_posts(posts, FinanceMatcher(load_dictionary()), {s.id: s for s in settings.sources}, risk=risk)
+    assert [a.category for a in analyzed] == ["disclosure", "news", "board", "board"]
+    assert analyzed[0].dtype == "횡령·배임"
+    export_all(tmp_path / "o", settings, [], analyzed, [], [], now, risk=risk)
+    al = json.loads((tmp_path / "o" / "alerts.json").read_text(encoding="utf-8"))
+    cat = al["windows"]["5d"]["사기·유사수신"]
+    assert cat["by_kind"] == {"news": 1, "board": 1}
+    assert al["windows"]["5d"]["내부통제·횡령·배임"]["by_kind"] == {"disclosure": 1}
+    assert al["disclosure_types"]["5d"]["횡령·배임"]["posts"] == 1
+    tr = json.loads((tmp_path / "o" / "trends.json").read_text(encoding="utf-8"))
+    assert set(tr["cats"]) == {"news", "disclosure", "board"}

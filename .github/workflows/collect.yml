@@ -1,6 +1,6 @@
 # 30분마다 수집 → 분석 → JSON 생성 → GitHub Pages 배포.
 # 사전 준비(한 번만): 저장소 Settings → Pages → Source 를 "GitHub Actions" 로 지정,
-# (선택) Settings → Secrets and variables → Actions 에 NAVER_CLIENT_ID, NAVER_CLIENT_SECRET 추가.
+# (선택) Settings → Secrets and variables → Actions 에 NAVER_CLIENT_ID, NAVER_CLIENT_SECRET, DART_API_KEY 추가.
 name: collect-and-deploy
 
 on:
@@ -45,6 +45,7 @@ jobs:
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
         run: python -m trendchecker run
 
       - uses: actions/cache/save@v4

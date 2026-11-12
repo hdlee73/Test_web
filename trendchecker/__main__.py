@@ -17,6 +17,7 @@ from . import __version__
 from .analysis.aggregate import analyze_posts
 from .analysis.candidates import find_candidates
 from .analysis.dictionary import FinanceMatcher
+from .analysis.risk import load_risk_matcher
 from .collector.adapters import parse
 from .collector.http import PoliteClient
 from .collector.run import collect_all
@@ -58,14 +59,17 @@ def cmd_build(args) -> int:
     finally:
         store.close()
     src_map = {s.id: s for s in settings.sources}
-    analyzed = analyze_posts(posts, matcher, src_map, load_excluded_keywords())
+    # 꺼 둔 소스(예: 제외한 카페글)의 이전 수집분은 화면에 내지 않는다
+    posts = [p for p in posts if p.source_id in src_map and src_map[p.source_id].enabled]
+    risk = load_risk_matcher()
+    analyzed = analyze_posts(posts, matcher, src_map, load_excluded_keywords(), risk)
     fin_titles = [a.post.title for a in analyzed if a.is_finance]
     try:
         cands = find_candidates(fin_titles, matcher.all_alias_texts | set(matcher.entries), load_stopwords())
     except Exception:
         log.exception("새 키워드 후보 추출 실패(집계는 계속 진행)")
         cands = []
-    files = export_all(Path(args.out), settings, states, analyzed, load_watchlist(), cands, now)
+    files = export_all(Path(args.out), settings, states, analyzed, load_watchlist(), cands, now, risk=risk)
     log.info("JSON %d개 생성 → %s", len(files), args.out)
     return 0
 
@@ -82,8 +86,8 @@ def cmd_check(args) -> int:
         for src in settings.sources:
             if only and src.id not in only:
                 continue
-            if src.type == "naver_api":
-                print(f"{src.id:18} naver_api          (공식 API: 환경변수 NAVER_CLIENT_ID/SECRET 으로 `collect --only {src.id}` 실행)")
+            if src.type in ("naver_api", "dart_api"):
+                print(f"{src.id:18} {src.type:18} (공식 API: 키를 환경변수로 넣고 `collect --only {src.id}` 실행)")
                 continue
             res = client.fetch(src.url)
             line = f"{src.id:18} {res.status:18} {res.detail}"

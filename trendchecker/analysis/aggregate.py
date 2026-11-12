@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from ..collector.timeutil import kst_midnight
@@ -19,17 +19,24 @@ class AnalyzedPost:
     post: StoredPost
     keywords: list[Entry]
     is_finance: bool
+    category: str = "board"                # news | disclosure | board
+    risks: list = field(default_factory=list)  # RiskHit 목록
+    dtype: str | None = None               # 공시 유형(공시일 때만)
 
 
 def analyze_posts(posts: list[StoredPost], matcher: FinanceMatcher, sources: dict[str, Source],
-                  exclude: frozenset[str] | set[str] = frozenset()) -> list[AnalyzedPost]:
+                  exclude: frozenset[str] | set[str] = frozenset(), risk=None) -> list[AnalyzedPost]:
     """exclude: 너무 광범위해 집계에서 뺄 대표어. 글은 여전히 '금융 관련'으로 센다."""
     out = []
     for p in posts:
         found = matcher.keywords(p.title)
         kws = [e for e in found if e.name not in exclude]
         src = sources.get(p.source_id)
-        out.append(AnalyzedPost(p, kws, bool(found) or bool(src and src.finance_board)))
+        cat = src.category if src else "board"
+        out.append(AnalyzedPost(
+            p, kws, bool(found) or bool(src and src.finance_board), cat,
+            risk.hits(p.title) if risk else [],
+            risk.disclosure_type(p.title) if risk and cat == "disclosure" else None))
     return out
 
 

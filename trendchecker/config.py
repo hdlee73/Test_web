@@ -11,7 +11,8 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = ROOT / "config"
 
-VALID_TYPES = {"rss", "link_regex", "naver_api"}
+VALID_TYPES = {"rss", "link_regex", "naver_api", "dart_api"}
+VALID_CATEGORIES = {"news", "disclosure", "board"}
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,9 @@ class Source:
     verified: str = "unknown"
     endpoint: str | None = None      # naver_api: blog | cafearticle | news
     pages: int = 1                   # naver_api: 질의어당 읽을 페이지 수(1페이지 = 최대 100건)
+    category: str = "board"          # news | disclosure | board (화면의 카테고리)
+    off_reason: str = ""             # enabled=false 인 이유(게시판 상태 화면에 표시)
+    queries_file: str | None = None  # naver_api: config/ 아래 질의어 파일(기본 naver_queries.txt)
 
     @property
     def label(self) -> str:
@@ -78,6 +82,9 @@ def load_sources(path: Path | None = None) -> Settings:
         stype = str(raw.get("type", "link_regex"))
         if stype not in VALID_TYPES:
             raise ValueError(f"{sid}: 알 수 없는 type {stype}")
+        cat = str(raw.get("category", "board"))
+        if cat not in VALID_CATEGORIES:
+            raise ValueError(f"{sid}: 알 수 없는 category {cat}")
         sources.append(
             Source(
                 id=sid,
@@ -92,6 +99,9 @@ def load_sources(path: Path | None = None) -> Settings:
                 verified=str(raw.get("verified", "unknown")),
                 endpoint=raw.get("endpoint"),
                 pages=max(1, min(10, int(raw.get("pages", 1)))),
+                category=cat,
+                off_reason=str(raw.get("off_reason", "")),
+                queries_file=raw.get("queries_file"),
             )
         )
     return Settings(defaults=defaults, sources=sources)
@@ -121,8 +131,8 @@ def load_watchlist(path: Path | None = None) -> list[WatchItem]:
     return items
 
 
-def load_naver_queries(path: Path | None = None) -> list[str]:
-    p = path or CONFIG_DIR / "naver_queries.txt"
+def load_naver_queries(path: Path | None = None, name: str | None = None) -> list[str]:
+    p = path or CONFIG_DIR / (name or "naver_queries.txt")
     if not p.exists():
         return []
     out: list[str] = []

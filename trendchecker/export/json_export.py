@@ -16,14 +16,15 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from ..analysis.aggregate import AnalyzedPost, aggregate, daily_series, spikes
+from ..analysis.aggregate import WINDOWS, AnalyzedPost, aggregate, daily_series, spikes, window_start
+from ..analysis.risk import RiskMatcher, disclosure_summary, risk_spikes, risk_summary
 from ..analysis.watch import matches
 from ..collector.timeutil import KST, kst_midnight, to_iso
 from ..config import Settings, WatchItem
 from ..storage.db import SourceState
 
-SCHEMA_VERSION = 1
-NOTICE = ("각 게시판의 공개 목록과 네이버 검색 API(블로그·카페글) 결과에서 제목과 링크만 수집해 키워드를 집계합니다. "
+SCHEMA_VERSION = 2
+NOTICE = ("DART 오픈API의 공시 목록, 네이버 검색 API의 뉴스·블로그, 각 게시판의 공개 목록에서 제목과 링크만 수집해 키워드를 집계합니다. "
           "게시물 본문과 작성자 정보는 저장하지 않으며, 모든 글의 권리는 원 게시판과 작성자에게 있습니다.")
 
 
@@ -41,7 +42,7 @@ def _default(o):
 
 def _post_obj(a: AnalyzedPost) -> dict:
     p = a.post
-    return {
+    o = {
         "id": p.uid,
         "s": p.source_id,
         "t": p.title,
@@ -50,11 +51,18 @@ def _post_obj(a: AnalyzedPost) -> dict:
         "x": 1 if p.time_exact else 0,
         "k": [e.name for e in a.keywords],
         "f": 1 if a.is_finance else 0,
+        "c": a.category,
     }
+    if a.risks:
+        o["r"] = [h.term for h in a.risks]
+    if a.dtype:
+        o["d"] = a.dtype
+    return o
 
 
 def export_all(out_dir: Path, settings: Settings, states: list[SourceState], analyzed: list[AnalyzedPost],
-               watchlist: list[WatchItem], candidates: list[dict], now: datetime, days: int = 5) -> list[Path]:
+               watchlist: list[WatchItem], candidates: list[dict], now: datetime, days: int = 5,
+               risk: RiskMatcher | None = None) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     start = kst_midnight(now, days - 1)
@@ -71,6 +79,7 @@ def export_all(out_dir: Path, settings: Settings, states: list[SourceState], ana
             {
                 "id": s.id, "site": s.site, "board": s.board, "url": s.url, "enabled": s.enabled,
                 "finance_board": s.finance_board,
+                "category": s.category, "off_reason": s.off_reason,
                 "status": (state_by_id.get(s.id).status if state_by_id.get(s.id) else "pending") if s.enabled else "off",
                 "last_success": state_by_id[s.id].last_success if s.id in state_by_id else None,
                 "last_count": state_by_id[s.id].last_count if s.id in state_by_id else None,
@@ -101,11 +110,15 @@ def export_all(out_dir: Path, settings: Settings, states: list[SourceState], ana
 
     # trends
     agg = aggregate(recent, now)
+    cats_agg = {c: aggregate([a for a in recent if a.category == c], now) for c in ("news", "disclosure", "board")}
     referenced = {uid for w in agg.values() for k in w["keywords"] for uid in k["top"]}
+    for ca in cats_agg.values():
+        referenced |= {uid for w in ca.values() for k in w["keywords"] for uid in k["top"]}
     post_lookup = {a.post.uid: _post_obj(a) for a in recent if a.post.uid in referenced}
     trends = {
         "generated_at": now,
         "windows": agg,
+        "cats": cats_agg,
         "daily": {
             "days": [(now.astimezone(KST) - timedelta(days=d)).strftime("%Y-%m-%d") for d in range(days - 1, -1, -1)],
             "series": daily_series(recent, now, days),
@@ -115,6 +128,25 @@ def export_all(out_dir: Path, settings: Settings, states: list[SourceState], ana
     }
     p = out_dir / "trends.json"
     _write(p, trends)
+    written.append(p)
+
+    # alerts (위험 신호어·공시 유형)
+    wins = {n: window_start(n, now) for n in WINDOWS}
+    rs = risk_summary(recent, now, wins)
+    ds = disclosure_summary(recent, wins)
+    rsp = risk_spikes(analyzed, now)
+    ref2 = {uid for w in rs.values() for c in w.values() for t in c["terms"] for uid in t["top"]}
+    ref2 |= {uid for w in ds.values() for t in w.values() for uid in t["top"]}
+    alerts = {
+        "generated_at": now,
+        "categories": risk.categories if risk else {},
+        "windows": rs,
+        "disclosure_types": ds,
+        "spikes": rsp,
+        "posts": {a.post.uid: _post_obj(a) for a in recent if a.post.uid in ref2},
+    }
+    p = out_dir / "alerts.json"
+    _write(p, alerts)
     written.append(p)
 
     # watchlist
