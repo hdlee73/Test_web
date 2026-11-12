@@ -337,6 +337,8 @@ def test_kind_dart_duplicate_disclosures_counted_once():
     from trendchecker.analysis.dedupe import dedupe_key, drop_duplicate_disclosures
     from trendchecker.storage.db import StoredPost
     assert dedupe_key("[코]가나다전자 [정정]횡령ㆍ배임혐의발생") == dedupe_key("가나다전자 횡령·배임혐의발생")
+    assert dedupe_key("[코]파인텍 분기보고서(일반법인)(2026.09)") == dedupe_key("파인텍 분기보고서 (2026.09)")
+    assert dedupe_key("가나 전환사채권발행결정(제10회차)") != dedupe_key("가나 전환사채권발행결정(제11회차)")
     sources = {s.id: s for s in load_sources().sources}
     assert sources["kind_disclosure"].dup_of == "dart_disclosure" and sources["kind_disclosure"].category == "disclosure"
     now = datetime.now(timezone.utc)

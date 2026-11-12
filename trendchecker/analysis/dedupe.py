@@ -1,6 +1,6 @@
 """같은 공시가 두 소스(DART, KIND)에 있을 때 한 번만 세기.
 
-키 = 회사명 + 보고서명을 정규화한 문자열(시장 표시 [유]·[코], [정정] 같은 대괄호 표시, 공백·가운뎃점 제거).
+키 = 회사명 + 보고서명을 정규화한 문자열(시장 표시 [유]·[코], [정정] 같은 대괄호 표시, 숫자 없는 괄호 설명, 공백·가운뎃점 제거).
 같은 키이고 날짜(KST)가 같거나 하루 차이면 중복으로 보고, 소스 설정의 dup_of 쪽을 우선한다.
 거래소에만 있는 공시(시장조치 등)는 그대로 남는다.
 """
@@ -15,12 +15,14 @@ from ..config import Source
 from ..storage.db import StoredPost
 
 _BRACKET = re.compile(r"\[[^\]]*\]")
+_PAREN = re.compile(r"\([^()\d]*\)")  # 숫자가 없는 괄호 설명: (일반법인), (공정공시), (잠정) — 소스마다 붙이는 말이 달라 뺀다
 _NOISE = re.compile(r"[\s·ㆍᆞ・\-_,.]+")  # ㆍ(U+318D)는 NFKC 에서 U+119E 로 바뀜
 
 
 def dedupe_key(title: str) -> str:
     t = unicodedata.normalize("NFKC", title)
     t = _BRACKET.sub("", t)
+    t = _PAREN.sub("", t)   # (2026.09)·(제10회차) 처럼 숫자가 든 괄호는 다른 공시를 가르므로 남긴다
     t = _NOISE.sub("", t)
     return t.lower()
 
