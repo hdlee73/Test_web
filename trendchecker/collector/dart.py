@@ -35,6 +35,26 @@ class DartError(Exception):
         self.blocked = blocked
 
 
+TIMEOUT = httpx.Timeout(60.0, connect=30.0)
+
+
+def get_with_retry(client: httpx.Client, url: str, params: dict, attempts: int = 3, sleep=time.sleep) -> httpx.Response:
+    """연결 시간 초과·일시 오류는 잠깐 쉬었다가 다시 시도한다(해외 서버에서 DART 응답이 느릴 때가 있다)."""
+    last: Exception | None = None
+    for i in range(attempts):
+        try:
+            r = client.get(url, params=params)
+            if r.status_code in (500, 502, 503, 504) and i < attempts - 1:
+                sleep(3 * (i + 1))
+                continue
+            return r
+        except (httpx.TimeoutException, httpx.ConnectError) as e:
+            last = e
+            if i < attempts - 1:
+                sleep(3 * (i + 1))
+    raise DartError(f"네트워크 오류: {last.__class__.__name__} ({attempts}회 시도)") from last
+
+
 def credentials(env=None) -> str | None:
     env = os.environ if env is None else env
     key = env.get("DART_API_KEY", "").strip()
@@ -69,12 +89,12 @@ def fetch_posts(source: Source, key: str, *, transport: httpx.BaseTransport | No
     end = now.astimezone(KST).date()
     bgn = end - timedelta(days=days - 1)
     merged: dict[str, RawPost] = {}
-    with httpx.Client(timeout=20, headers={"User-Agent": "TrendCheckerBot/0.1"}, transport=transport) as client:
+    with httpx.Client(timeout=TIMEOUT, headers={"User-Agent": "TrendCheckerBot/0.1"}, transport=transport) as client:
         page = 1
         while page <= max_pages:
             try:
-                r = client.get(source.url, params={"crtfc_key": key, "bgn_de": bgn.strftime("%Y%m%d"),
-                                                   "end_de": end.strftime("%Y%m%d"), "page_no": page, "page_count": 100})
+                r = get_with_retry(client, source.url, {"crtfc_key": key, "bgn_de": bgn.strftime("%Y%m%d"),
+                                                        "end_de": end.strftime("%Y%m%d"), "page_no": page, "page_count": 100}, sleep=sleep)
             except httpx.HTTPError as e:
                 raise DartError(f"네트워크 오류: {e.__class__.__name__}") from e
             if r.status_code == 429:

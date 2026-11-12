@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 import httpx
 
 from ..config import Source
-from .dart import DartError
+from .dart import TIMEOUT, DartError, get_with_retry
 from .timeutil import KST, utcnow
 
 log = logging.getLogger(__name__)
@@ -116,9 +116,9 @@ def summarize(kind: str, data: dict) -> dict[str, dict]:
     return res
 
 
-def _get(client: httpx.Client, endpoint: str, params: dict) -> dict:
+def _get(client: httpx.Client, endpoint: str, params: dict, sleep=time.sleep) -> dict:
     try:
-        r = client.get(API.format(endpoint=endpoint), params=params)
+        r = get_with_retry(client, API.format(endpoint=endpoint), params, sleep=sleep)
     except httpx.HTTPError as e:
         raise DartError(f"네트워크 오류: {e.__class__.__name__}") from e
     if r.status_code == 429:
@@ -144,7 +144,7 @@ def fetch_filings(client: httpx.Client, key: str, now: datetime, days: int, max_
     page = 1
     while page <= max_pages:
         data = _get(client, "list", {"crtfc_key": key, "bgn_de": bgn.strftime("%Y%m%d"), "end_de": end.strftime("%Y%m%d"),
-                                     "pblntf_ty": "C", "page_no": page, "page_count": 100})
+                                     "pblntf_ty": "C", "page_no": page, "page_count": 100}, sleep)
         if str(data.get("status")) == "013":
             break
         items += data.get("list") or []
@@ -161,7 +161,7 @@ def collect(source: Source, key: str, known: set[str], *, transport: httpx.BaseT
     """새로 정리한 (접수번호, 접수일, 데이터) 목록과 대상 신고서 수."""
     now = now or utcnow()
     out: list[tuple[str, str, dict]] = []
-    with httpx.Client(timeout=20, headers={"User-Agent": "TrendCheckerBot/0.1"}, transport=transport) as client:
+    with httpx.Client(timeout=TIMEOUT, headers={"User-Agent": "TrendCheckerBot/0.1"}, transport=transport) as client:
         filings = []
         for it in fetch_filings(client, key, now, days, max_pages, pause, sleep):
             c = classify(str(it.get("report_nm") or ""))
@@ -174,7 +174,7 @@ def collect(source: Source, key: str, known: set[str], *, transport: httpx.BaseT
             todo.setdefault((str(it["corp_code"]), api, label), []).append(it)
         for (corp, api, label), its in todo.items():
             dts = sorted(str(i.get("rcept_dt") or "") for i in its)
-            data = _get(client, api, {"crtfc_key": key, "corp_code": corp, "bgn_de": dts[0], "end_de": dts[-1]})
+            data = _get(client, api, {"crtfc_key": key, "corp_code": corp, "bgn_de": dts[0], "end_de": dts[-1]}, sleep)
             summ = summarize(label, data)
             for it in its:
                 no = str(it["rcept_no"])

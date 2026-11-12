@@ -434,3 +434,24 @@ def test_funding_classify_summarize_and_collect(tmp_path):
     calls.clear()
     r = collect_funding(store, src, (1,), env={"DART_API_KEY": "k"}, transport=httpx.MockTransport(handler), now=now, sleep=lambda s: None)
     assert r.new == 0 and calls == ["/api/list.json"]
+
+
+def test_dart_retries_on_timeout_then_succeeds():
+    from trendchecker.collector.dart import DartError, get_with_retry
+    n = {"c": 0}
+
+    def handler(req):
+        n["c"] += 1
+        if n["c"] < 3:
+            raise httpx.ConnectTimeout("slow")
+        return httpx.Response(200, json={"status": "000"})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as c:
+        assert get_with_retry(c, "https://x/api", {}, sleep=lambda s: None).status_code == 200 and n["c"] == 3
+    n["c"] = -10
+    with httpx.Client(transport=httpx.MockTransport(handler)) as c:
+        try:
+            get_with_retry(c, "https://x/api", {}, attempts=2, sleep=lambda s: None)
+            raise AssertionError("should fail")
+        except DartError as e:
+            assert "ConnectTimeout" in str(e)
