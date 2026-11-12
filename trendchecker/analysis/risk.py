@@ -1,6 +1,6 @@
-"""위험 신호어와 공시 유형 분류(상시감시용).
+"""모니터링 키워드와 공시 유형 분류(상시감시용).
 
-config/risk_terms.yaml 의 신호어를 제목에서 찾는다. 공백·대소문자는 무시하고 부분 일치로 비교한다.
+config/risk_terms.yaml 의 키워드를 제목에서 찾는다. 공백·대소문자는 무시하고 부분 일치로 비교한다.
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ class RiskHit:
 
 @dataclass
 class RiskMatcher:
-    terms: list[tuple[str, str, str]] = field(default_factory=list)       # (분류, 표시용 신호어, 비교용)
+    terms: list[tuple[str, str, str]] = field(default_factory=list)       # (분류, 표시용 키워드, 비교용)
     dtypes: list[tuple[str, list[str]]] = field(default_factory=list)      # (유형, 비교용 키워드들)
 
     @classmethod
@@ -39,7 +39,7 @@ class RiskMatcher:
                 if not w:
                     continue
                 if w in seen:
-                    raise ValueError(f"위험 신호어가 중복됨: {w}")
+                    raise ValueError(f"모니터링 키워드가 중복됨: {w}")
                 seen.add(w)
                 m.terms.append((str(cat), w, _squash(w)))
         for name, words in (data.get("disclosure_types") or {}).items():
@@ -73,7 +73,7 @@ def load_risk_matcher(path: Path | None = None) -> RiskMatcher:
 
 
 def risk_summary(analyzed: list, now: datetime, windows: dict[str, datetime], top_n: int = 5) -> dict:
-    """windows: 이름 → 시작 시각. 분류별·신호어별 건수와 출처 구분(뉴스/공시/게시판)별 건수."""
+    """windows: 이름 → 시작 시각. 분류별·키워드별 건수와 출처 구분(뉴스/공시/게시판)별 건수."""
     out: dict[str, Any] = {}
     for name, start in windows.items():
         cats: dict[str, dict] = {}
@@ -83,7 +83,7 @@ def risk_summary(analyzed: list, now: datetime, windows: dict[str, datetime], to
             counted: set[str] = set()
             for h in a.risks:
                 c = cats.setdefault(h.category, {"posts": 0, "by_kind": Counter(), "terms": {}})
-                if h.category not in counted:  # 분류별 건수는 글 하나당 1회(신호어가 둘 겹쳐도)
+                if h.category not in counted:  # 분류별 건수는 글 하나당 1회(키워드가 둘 겹쳐도)
                     counted.add(h.category)
                     c["posts"] += 1
                     c["by_kind"][a.category] += 1
@@ -120,7 +120,7 @@ def disclosure_summary(analyzed: list, windows: dict[str, datetime], top_n: int 
 
 
 def risk_spikes(analyzed: list, now: datetime, baseline_days: int = 4, min_recent: int = 2, min_ratio: float = 2.0) -> list[dict]:
-    """최근 24시간 신호어 건수를 직전 baseline_days 일 평균과 비교."""
+    """최근 24시간 키워드 건수를 직전 baseline_days 일 평균과 비교."""
     recent_from = now - timedelta(hours=24)
     base_from = recent_from - timedelta(days=baseline_days)
     recent: Counter[tuple[str, str]] = Counter()

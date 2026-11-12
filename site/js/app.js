@@ -11,10 +11,10 @@ const MENU = [
   ["monitor", "게시판 모니터링"],
   ["news", "뉴스"],
   ["inquiry", "조회공시/풍문"],
-  ["funding", "자금조달"],
+  ["funding", "공모(증권신고서)"],
   ["board", "게시판"],
   ["trend", "키워드 순위"],
-  ["heat", "위험 신호 히트맵"],
+  ["heat", "모니터링 키워드 히트맵"],
   ["spikes", "급상승"],
   ["boards", "수집 현황"],
   ["info", "정보"],
@@ -22,6 +22,7 @@ const MENU = [
 // 메뉴에는 없지만 다른 화면의 링크가 쓰는 주소(#/posts?k=금리 처럼): 전체 카테고리 검색
 const HIDDEN_ROUTES = ["posts"];
 const CATS = [["news", "뉴스"], ["disclosure", "공시"], ["board", "게시판"]];
+const TREND_CATS = CATS.filter((x) => x[0] !== "disclosure"); // 키워드 순위는 공시 제외
 const STATUS_CATS = [...CATS, ["blog", "블로그"]];
 const catName = (c) => (STATUS_CATS.find((x) => x[0] === c) || [c, c])[1];
 const WINDOWS = [["today", "오늘"], ["3d", "최근 3일"], ["5d", "최근 5일"]];
@@ -82,7 +83,7 @@ function postRow(p, query) {
     p.d ? h("span", { class: "chip warm" }, p.d) : null,
     p.a ? h("span", { class: "chip", title: "제목 패턴으로 본 광고·홍보 의심(순위·위험 집계에서 제외)" }, "광고 의심") : null,
     url ? h("a", { href: url, target: "_blank", rel: "noopener noreferrer" }, title) : h("span", null, title),
-    p.r?.length ? h("span", { class: "chip bad", title: "위험 신호어" }, "⚠ " + p.r.slice(0, 2).join(" · ")) : null,
+    p.r?.length ? h("span", { class: "chip bad", title: "모니터링 키워드" }, "⚠ " + p.r.slice(0, 2).join(" · ")) : null,
     h("time", { datetime: p.at, title: p.x ? "게시 시각" : "수집 시각(사이트가 시각을 주지 않음)" }, (p.x ? "" : "≈") + fmtDateTime(p.at)));
 }
 function highlight(text, query) {
@@ -98,7 +99,7 @@ const stateBox = (text, extra) => h("div", { class: "state" }, text, extra);
 function viewTrend(params) {
   const w = WINDOWS.some((x) => x[0] === params.w) ? params.w : "today";
   const cat = params.c || "";
-  const sc = CATS.some((x) => x[0] === params.src) ? params.src : "";
+  const sc = TREND_CATS.some((x) => x[0] === params.src) ? params.src : "";
   const win = (sc ? ctx.trends.cats?.[sc] : null)?.[w] ?? ctx.trends.windows[w];
   const cats = [...new Set(win.keywords.map((k) => k.category))].sort();
   const rows = win.keywords.filter((k) => !cat || k.category === cat).slice(0, 40);
@@ -115,7 +116,7 @@ function viewTrend(params) {
       kpi(String(ctx.trends.spikes.length), "급상승 키워드")),
     h("div", { class: "row" },
       segmented(w, (id) => go("trend", { w: id, c: cat, src: sc })),
-      h("div", { class: "seg", role: "group", "aria-label": "출처" }, [["", "전체"], ...CATS].map(([id, label]) =>
+      h("div", { class: "seg", role: "group", "aria-label": "출처" }, [["", "전체"], ...TREND_CATS].map(([id, label]) =>
         h("button", { type: "button", "aria-pressed": String(id === sc), onclick: () => go("trend", { w, c: cat, src: id }) }, label))),
       h("span", { class: "small muted" }, `한국시간 기준 · ${fmtDateTime(win.from)} 이후 · 글 하나에 여러 번 나와도 1건으로 셉니다`)),
     h("div", { class: "cats", role: "group", "aria-label": "분류" },
@@ -143,12 +144,12 @@ function viewTrend(params) {
 const kpi = (v, l) => h("div", { class: "kpi" }, h("b", null, v), h("span", null, l));
 const notice = () => h("p", { class: "notice" }, ctx.meta.notice);
 
-// ── 위험 신호 히트맵(위험 신호어 × 게시판): 칸을 누르면 그 글 목록
+// ── 모니터링 키워드 히트맵(키워드 × 게시판): 칸을 누르면 그 글 목록
 async function viewHeat(params) {
   const w = WINDOWS.some((x) => x[0] === params.w) ? params.w : "3d";
   const holder = h("div", { class: "card tablewrap" }, stateBox("불러오는 중…"));
   const box = h("div", { class: "wrap" },
-    h("div", { class: "row" }, segmented(w, (id) => go("heat", { w: id })), h("span", { class: "small muted" }, "숫자 = 그 게시판에서 신호어가 들어간 글 수, 색 = 그 게시판 글 천 건당 비율 · 칸을 누르면 글 목록")),
+    h("div", { class: "row" }, segmented(w, (id) => go("heat", { w: id })), h("span", { class: "small muted" }, "숫자 = 그 게시판에서 키워드가 들어간 글 수, 색 = 그 게시판 글 천 건당 비율 · 칸을 누르면 글 목록")),
     holder);
   const mine = renderSeq;
   const from = ctx.trends.windows[w].from;
@@ -163,13 +164,13 @@ async function viewHeat(params) {
   const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
   const terms = Object.keys(cnt).sort((a, b) => sum(cnt[b]) - sum(cnt[a]) || a.localeCompare(b, "ko")).slice(0, 16);
   const boards = Object.keys(total).sort((a, b) => total[b] - total[a]).slice(0, 12);
-  if (terms.length === 0) { setChildren(holder, stateBox("이 기간에 게시판에서 위험 신호어가 들어간 글이 없습니다.")); return box; }
+  if (terms.length === 0) { setChildren(holder, stateBox("이 기간에 게시판에서 모니터링 키워드가 들어간 글이 없습니다.")); return box; }
   const per = (t, b) => ((cnt[t][b] || 0) / total[b]) * 1000;
   const peak = Math.max(1, ...terms.flatMap((t) => boards.map((b) => per(t, b))));
   setChildren(holder, h("div", { class: "heat", style: { gridTemplateColumns: `112px repeat(${boards.length}, minmax(48px, 1fr))` } },
     h("div"), boards.map((b) => h("div", { class: "h" }, sourceLabel(b))),
     terms.map((t) => [
-      h("div", { class: "hk", style: { cursor: "pointer" }, title: "이 신호어가 든 글 전체 보기", onclick: () => go("board", { r: t, w }) }, t),
+      h("div", { class: "hk", style: { cursor: "pointer" }, title: "이 키워드가 든 글 전체 보기", onclick: () => go("board", { r: t, w }) }, t),
       boards.map((b) => {
         const n = cnt[t][b] || 0, v = per(t, b), lv = n === 0 ? 0 : Math.min(4, 1 + Math.floor((v / peak) * 3.999));
         return h("div", { class: "c", style: { background: `var(--h${lv})`, color: lv >= 3 ? "#fff" : "inherit", fontWeight: lv >= 3 ? "600" : "400", cursor: n ? "pointer" : "default" },
@@ -196,7 +197,7 @@ function viewSpikes() {
     notice());
 }
 
-// ── 뉴스 / 공시 / 게시판 목록(키워드·위험 신호어·제목 검색)
+// ── 뉴스 / 공시 / 게시판 목록(키워드·모니터링 키워드·제목 검색)
 // rid: 이 화면의 주소 이름, fixedCat: 고정된 카테고리("" 이면 전체 + 카테고리 선택)
 async function viewPosts(params, rid = "posts", fixedCat = "") {
   const w = WINDOWS.some((x) => x[0] === params.w) ? params.w : "5d";
@@ -220,7 +221,7 @@ async function viewPosts(params, rid = "posts", fixedCat = "") {
     h("button", { type: "button", "aria-pressed": String(id === cat), onclick: () => nav({ cat: id, b: "" }) }, label)));
   const dtypeBox = h("span");
   appendKids(box, h("div", { class: "row" }, segmented(w, (id) => nav({ w: id })), catSeg, boardSel, dtypeBox), form);
-  const chips = [k && ["키워드", k, { k: "" }], risk && ["위험 신호어", risk, { r: "" }], dtype && ["공시 유형", dtype, { t: "" }]].filter(Boolean);
+  const chips = [k && ["키워드", k, { k: "" }], risk && ["모니터링 키워드", risk, { r: "" }], dtype && ["공시 유형", dtype, { t: "" }]].filter(Boolean);
   if (chips.length) appendKids(box, h("div", { class: "row" }, chips.map(([lab, val, clr]) =>
     h("span", { class: "row" }, h("span", { class: "chip acc" }, `${lab}: ${val}`), h("button", { class: "btn ghost sm", type: "button", onclick: () => nav(clr) }, "해제")))));
   const holder = h("div", { class: "card" }, stateBox("불러오는 중…"));
@@ -253,7 +254,7 @@ async function viewPosts(params, rid = "posts", fixedCat = "") {
   return box;
 }
 
-// ── 게시판 모니터링: 내가 등록한 키워드 + 기본 위험 신호어(커뮤니티 게시판 글만)
+// ── 게시판 모니터링: 내가 등록한 키워드 + 기본 모니터링 키워드(커뮤니티 게시판 글만)
 const MAX_WATCH = 5;
 const loadWatch = () => store.get("watch", []);
 function matchesWatch(item, p) {
@@ -291,12 +292,12 @@ async function viewMonitor(params) {
   const cats = Object.entries(al?.windows?.[w] || {});
   const lookup = (uid) => al?.posts?.[uid];
   appendKids(box, 
-    h("div", { class: "card" }, h("h2", null, "평소보다 늘어난 위험 신호어(최근 24시간)"),
-      !al || al.spikes.length === 0 ? h("p", { class: "small muted" }, "지금은 급증한 신호어가 없습니다. 데이터가 며칠 쌓이면 표시됩니다.")
+    h("div", { class: "card" }, h("h2", null, "평소보다 늘어난 모니터링 키워드(최근 24시간)"),
+      !al || al.spikes.length === 0 ? h("p", { class: "small muted" }, "지금은 급증한 키워드가 없습니다. 데이터가 며칠 쌓이면 표시됩니다.")
         : h("div", { class: "row" }, al.spikes.slice(0, 12).map((sp) =>
             h("button", { class: "chip " + (sp.new ? "warm" : "bad"), type: "button", style: { border: 0, cursor: "pointer" }, title: sp.category,
               onclick: () => go("board", { r: sp.term, w: "today" }) }, `${sp.term} ${sp.new ? "NEW" : "×" + sp.ratio} (${sp.recent_24h}건)`)))),
-    cats.length === 0 ? stateBox("이 기간에 게시판에서 위험 신호어가 들어간 글이 없습니다.")
+    cats.length === 0 ? stateBox("이 기간에 게시판에서 모니터링 키워드가 들어간 글이 없습니다.")
       : cats.map(([name, c]) => h("div", { class: "card" },
           h("div", { class: "row" }, h("h2", { style: { margin: 0 } }, name), h("span", { class: "chip bad" }, `${c.posts}건`)),
           h("div", { class: "row", style: { margin: "8px 0" } }, c.terms.map((t) =>
@@ -389,7 +390,7 @@ async function viewInquiry(params) {
   return box;
 }
 
-// ── 자금조달: 최근 5일 증권신고서 제출 현황(펀드 제외)
+// ── 공모(증권신고서): 최근 5일 증권신고서 제출 현황(펀드 제외)
 async function viewFunding() {
   const box = h("div", { class: "wrap" });
   const mine = renderSeq;
@@ -406,13 +407,15 @@ async function viewFunding() {
   const eok = (v) => (v == null ? "–" : v.toLocaleString("ko-KR", { maximumFractionDigits: 1 }));
   const d8 = (s) => (s && s.length === 8 ? `${s.slice(4, 6)}.${s.slice(6, 8)}` : s || "–");
   appendKids(box, 
-    h("p", { class: "muted" }, "DART 증권신고서(정정 포함)를 증권 종류별로 정리했습니다. 펀드(집합투자증권)는 제외했고, 모집(매출)총액은 억원 단위입니다. 정정 신고서는 제출 때마다 한 줄로 나옵니다."),
+    h("p", { class: "muted" }, "DART 증권신고서(정정 포함)를 IPO와 그 외 공모로 나누어 정리했습니다. 펀드(집합투자증권)는 제외했고, 모집(매출)총액은 억원 단위입니다. 정정 신고서는 제출 때마다 한 줄로 나옵니다."),
     h("div", { class: "kpis" }, kpi(String(items.length), "최근 5일 제출 건수"), kpi(eok(total), "모집(매출)총액 합계(억원)"),
-      ...Object.entries(byKind).slice(0, 2).map(([name, b]) => kpi(`${b.n}건 · ${eok(b.eok)}억`, name))),
+      kpi(`${items.filter((x) => x.kind === "지분증권" && !x.stock_code).length}건`, "IPO(비상장 지분증권)"),
+      ...Object.entries(byKind).slice(0, 2).map(([name, b]) => kpi(`${b.n}건 · ${eok(b.eok)}억`, name))));
+  const table = (rows) =>
     h("div", { class: "card tablewrap" }, h("table", null,
       h("thead", null, h("tr", null, h("th", null, "접수일"), h("th", null, "회사"), h("th", null, "신고서"), h("th", null, "증권 종류"),
         h("th", { class: "n" }, "모집(매출)규모(억원)"), h("th", null, "청약일"), h("th", null, "납입일"), h("th", null, "공시"))),
-      h("tbody", null, items.map((x) => {
+      h("tbody", null, rows.map((x) => {
         const url = safeUrl(x.url);
         return h("tr", null,
           h("td", null, d8(x.rcept_dt)),
@@ -423,7 +426,19 @@ async function viewFunding() {
           h("td", null, x.sub_date || "–"),
           h("td", null, x.pay_date || "–"),
           h("td", null, url ? h("a", { class: "btn ghost sm", href: url, target: "_blank", rel: "noopener noreferrer" }, "공시 보기") : "–"));
-      })))),
+      }))));
+  // IPO: 지분증권 신고서 중 종목코드가 없는(비상장) 회사. 상장사 유상증자와 구분하는 간이 기준입니다.
+  const isIpo = (x) => x.kind === "지분증권" && !x.stock_code;
+  const ipo = items.filter(isIpo);
+  const rest = items.filter((x) => !isIpo(x));
+  const section = (title, note, rows) => [
+    h("h2", { class: "sec" }, `${title} · ${rows.length}건`),
+    note ? h("p", { class: "small muted" }, note) : null,
+    rows.length ? table(rows) : stateBox("이 기간에 해당하는 신고서가 없습니다."),
+  ];
+  appendKids(box,
+    ...section("IPO(기업공개)", "비상장 회사가 제출한 지분증권 신고서입니다(종목코드가 없는 회사를 IPO로 간주하므로, 비상장 회사의 일반 증자가 섞일 수 있습니다).", ipo),
+    ...section("그 외 공모", "상장사 유상증자, 채무증권(회사채 등), 기타 증권입니다.", rest),
     notice());
   return box;
 }
@@ -479,11 +494,11 @@ function viewInfo() {
     h("div", { class: "card" }, h("h2", null, "업데이트"), upd, h("div", { style: { marginTop: "8px" } }, h("button", { class: "btn ghost sm", type: "button", onclick: check }, "업데이트 확인"))),
     h("div", { class: "card" }, h("h2", null, "사용 방법"),
       h("ol", { style: { margin: 0, paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "4px" } },
-        h("li", null, "‘게시판 모니터링’은 커뮤니티 게시판 글에서 위험 신호어(유사수신·리딩방·불완전판매·환매 중단·횡령·정보 유출 등)와, 내가 등록한 키워드(최대 5개, 동의어·제외어 가능)가 든 글을 찾아 줍니다. 최근 24시간에 평소보다 크게 늘어난 신호어도 알려 줍니다."),
+        h("li", null, "‘게시판 모니터링’은 커뮤니티 게시판 글에서 모니터링 키워드(유사수신·리딩방·불완전판매·환매 중단·횡령·정보 유출 등)와, 내가 등록한 키워드(최대 5개, 동의어·제외어 가능)가 든 글을 찾아 줍니다. 최근 24시간에 평소보다 크게 늘어난 키워드도 알려 줍니다."),
         h("li", null, "‘뉴스’는 최근 12시간 네이버 뉴스 제목에서 가장 많이 나온 키워드 10개를 보여주고, 키워드를 누르면 해당 기사 목록이 나옵니다."),
         h("li", null, "‘조회공시/풍문’은 최근 5일 동안 거래소가 풍문·보도에 대해 요구한 조회공시와 회사의 답변·해명 공시만 모았습니다."),
-        h("li", null, "‘자금조달’은 최근 5일 증권신고서(펀드 제외)를 증권 종류, 모집(매출)규모(억원), 청약일, 납입일로 정리하고 ‘공시 보기’로 DART 원문에 연결합니다."),
-        h("li", null, "‘게시판’은 커뮤니티 게시판 글을 검색하고, ‘위험 신호 히트맵’은 위험 신호어가 어느 게시판에 많은지 보여주며 칸을 누르면 글 목록이 나옵니다."),
+        h("li", null, "‘공모(증권신고서)’는 최근 5일 증권신고서(펀드 제외)를 증권 종류, 모집(매출)규모(억원), 청약일, 납입일로 정리하고 ‘공시 보기’로 DART 원문에 연결합니다."),
+        h("li", null, "‘게시판’은 커뮤니티 게시판 글을 검색하고, ‘모니터링 키워드 히트맵’은 모니터링 키워드가 어느 게시판에 많은지 보여주며 칸을 누르면 글 목록이 나옵니다."),
         h("li", null, "‘키워드 순위’는 오늘·최근 3일·최근 5일에 많이 언급된 금융·금융회사 키워드이고, ‘급상승’은 최근 24시간에 크게 늘어난 키워드입니다. 데이터가 며칠 쌓이기 전에는 비어 있을 수 있습니다."),
         h("li", null, "‘수집 현황’에서 소스별 상태와, 수집하지 않는 곳의 제외 사유를 확인합니다."))),    h("div", { class: "card" }, h("h2", null, "수집 원칙과 안내"),
       h("p", null, ctx.meta?.notice || ""),

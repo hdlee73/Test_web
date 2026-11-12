@@ -112,7 +112,7 @@ def export_all(out_dir: Path, settings: Settings, states: list[SourceState], ana
 
     # trends
     # 블로그는 홍보글이 많아 기본 순위·급상승에서 뺀다(블로그 탭에서 따로 본다). 광고 의심 글도 집계에서 뺀다.
-    counted = [a for a in recent if a.category != "blog" and not a.ad]
+    counted = [a for a in recent if a.category not in ("blog", "disclosure") and not a.ad]  # 키워드 순위·급상승은 공시 제외
     agg = aggregate(counted, now)
     cats_agg = {c: aggregate([a for a in recent if a.category == c and not a.ad], now) for c in ("news", "disclosure", "board", "blog")}
     referenced = {uid for w in agg.values() for k in w["keywords"] for uid in k["top"]}
@@ -134,9 +134,9 @@ def export_all(out_dir: Path, settings: Settings, states: list[SourceState], ana
     _write(p, trends)
     written.append(p)
 
-    # alerts (위험 신호어·공시 유형)
+    # alerts (모니터링 키워드·공시 유형)
     wins = {n: window_start(n, now) for n in WINDOWS}
-    # 광고 의심 글은 위험 신호 집계에서 뺀다. 다만 사기·유사수신 신호어가 든 글은 그 자체가 감시 대상이라 남긴다.
+    # 광고 의심 글은 모니터링 키워드 집계에서 뺀다. 다만 사기·유사수신 키워드가 든 글은 그 자체가 감시 대상이라 남긴다.
     # 게시판 모니터링: 커뮤니티 게시판 글만 본다(뉴스·공시·블로그 제외)
     keep = lambda a: a.category == "board" and not a.ad
     rs = risk_summary([a for a in recent if keep(a)], now, wins)
