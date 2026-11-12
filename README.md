@@ -1,7 +1,20 @@
-# Trend Checker
+# Trend Checker (금융 상시감시용)
 
 국내 커뮤니티 게시판의 **공개 목록 제목**에서 금융·금융회사 키워드를 집계해
 오늘 / 최근 3일 / 최근 5일 트렌드와 관심 키워드 게시물 목록을 보여주는 비상업용 공개 웹페이지입니다.
+
+## 소스 카테고리
+| 카테고리 | 소스 | 방식 |
+| --- | --- | --- |
+| 공시 | DART 전자공시 | 오픈API(`DART_API_KEY` 필요, https://opendart.fss.or.kr) |
+| 뉴스 | 네이버 뉴스 | 네이버 검색 API(`NAVER_CLIENT_ID/SECRET`), 질의어 `config/naver_news_queries.txt` |
+| 게시판 | 커뮤니티 12곳 + 네이버 블로그 | robots.txt 준수, 목록 1페이지/RSS |
+
+제외한 소스(robots.txt 금지: 디시·엠팍·펨코·82쿡·SLR클럽·딴지, 열람 제한: 네이버 카페)는 `sources.yaml` 의 `off_reason` 에 사유를 적고 화면 '수집 현황'에 표시한다.
+
+## 감시 기능
+- `config/risk_terms.yaml`: 위험 신호어(6개 분류)와 중요 공시 유형. 제목에서 부분 일치로 찾고 `alerts.json` 으로 내보낸다.
+- 화면의 '위험 신호': 분류별 건수, 최근 24시간 급증 신호어, 공시 유형별 목록.
 
 ## 수집 원칙
 - 게시판 목록 1페이지 또는 RSS 만 읽습니다. 게시물 본문 페이지는 열지 않습니다.
@@ -39,11 +52,13 @@ python -m pytest -q                   # 테스트
 | trends.json | `windows.today/3d/5d` 키워드 순위(게시물 수, 게시판별 수, 종합 점수), 일자별 추이, 급상승, 대표 게시물 |
 | posts-YYYYMMDD.json | 일자별 게시물 `{id, s(게시판), t(제목), u(링크), at, x(시각 정확 여부), k(키워드), f(금융글)}` |
 | watchlist.json | `config/watchlist.yaml` 매칭 결과 |
+| alerts.json | 위험 신호어 분류·급증, 공시 유형별 요약 |
 | candidates.json | 사전에 없는 새 키워드 후보 (사전 보강용) |
 
 ## 배포 (GitHub Pages)
 `.github/workflows/collect.yml` 이 30분마다 수집 → 분석 → `site/data/*.json` 생성 → Pages 배포를 합니다.
 - 저장소 Settings → Pages → Source 를 **GitHub Actions** 로 지정(한 번만).
+- 공시를 받으려면 Secrets 에 `DART_API_KEY` 를 추가합니다. 키가 없으면 공시만 "API 키 없음"으로 표시됩니다.
 - 네이버 검색 API 를 쓰려면 Settings → Secrets and variables → Actions 에 `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` 을 추가합니다. 키가 없으면 해당 항목은 "API 키 없음"으로 표시되고 나머지는 정상 동작합니다. 질의어는 `config/naver_queries.txt`.
 - 공개 저장소는 60일간 저장소 활동이 없으면 예약 실행이 멈춥니다. 멈추면 Actions 탭에서 Run workflow 로 다시 시작합니다.
 - 수집 DB 는 Actions 캐시에 이어 저장되며, 잃어버려도 다음 수집부터 다시 쌓입니다(급상승·3일/5일 집계는 며칠 걸려 채워짐).

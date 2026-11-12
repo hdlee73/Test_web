@@ -35,3 +35,6 @@ export async function loadPosts(meta, days) {
   }));
   return parts.flat();
 }
+
+/** 위험 신호·공시 유형 요약(없으면 null). */
+export const loadAlerts = () => getJson("alerts.json", { version }).catch(() => null);
